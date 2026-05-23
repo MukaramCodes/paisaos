@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AreaChart,
   Area,
@@ -62,6 +62,24 @@ const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 export default function NetWorthPage() {
   const [assets, setAssets] = useState<Asset[]>(initAssets);
   const [liabilities, setLiabilities] = useState<Liability[]>(initLiabilities);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const a = localStorage.getItem('paisaos_assets');
+    const l = localStorage.getItem('paisaos_liabilities');
+    if (a) setAssets(JSON.parse(a));
+    if (l) setLiabilities(JSON.parse(l));
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem('paisaos_assets', JSON.stringify(assets));
+  }, [assets, mounted]);
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem('paisaos_liabilities', JSON.stringify(liabilities));
+  }, [liabilities, mounted]);
+
   const [showAddAsset, setShowAddAsset] = useState(false);
   const [showAddLiability, setShowAddLiability] = useState(false);
   const [newAsset, setNewAsset] = useState({ name: '', amount: '', category: 'Cash' });

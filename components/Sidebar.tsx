@@ -12,8 +12,10 @@ import {
   TrendingUp,
   Menu,
   X,
+  Pencil,
+  Check,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 
 const navItems = [
@@ -29,6 +31,28 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('paisaos_username');
+    if (saved) setUserName(saved);
+  }, []);
+
+  const saveName = () => {
+    const trimmed = nameInput.trim();
+    if (trimmed) {
+      setUserName(trimmed);
+      localStorage.setItem('paisaos_username', trimmed);
+    }
+    setEditingName(false);
+  };
+
+  const startEdit = () => {
+    setNameInput(userName);
+    setEditingName(true);
+  };
 
   const NavContent = () => (
     <>
@@ -61,30 +85,51 @@ export default function Sidebar() {
                   : 'text-[#2D6A4F] hover:bg-[#D8F3DC] hover:text-[#1B4332]'
               )}
             >
-              <Icon
-                size={18}
-                className={clsx(
-                  'flex-shrink-0',
-                  active ? 'text-[#74C69D]' : 'text-[#40916C]'
-                )}
-              />
+              <Icon size={18} className={clsx('flex-shrink-0', active ? 'text-[#74C69D]' : 'text-[#40916C]')} />
               {label}
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-6 py-4 border-t border-[#D8F3DC]">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[#D8F3DC] flex items-center justify-center">
-            <span className="text-[#1B4332] font-bold text-xs">AK</span>
+      {/* Account Footer */}
+      <div className="px-4 py-4 border-t border-[#D8F3DC]">
+        {editingName ? (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
+              placeholder="Enter your name"
+              className="flex-1 text-sm border border-[#D8F3DC] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#40916C] bg-[#F4EFE6]"
+            />
+            <button onClick={saveName} className="p-1.5 bg-[#1B4332] text-white rounded-lg hover:bg-[#2D6A4F]">
+              <Check size={13} />
+            </button>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-[#1B4332]">Ali Khan</p>
-            <p className="text-xs text-[#40916C]">Demo Account</p>
+        ) : userName ? (
+          <div className="flex items-center justify-between group">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#D8F3DC] flex items-center justify-center flex-shrink-0">
+                <span className="text-[#1B4332] font-bold text-xs">
+                  {userName.slice(0, 2).toUpperCase()}
+                </span>
+              </div>
+              <p className="text-sm font-semibold text-[#1B4332] truncate">{userName}</p>
+            </div>
+            <button onClick={startEdit} className="p-1 text-gray-300 hover:text-[#40916C] transition-colors opacity-0 group-hover:opacity-100">
+              <Pencil size={13} />
+            </button>
           </div>
-        </div>
+        ) : (
+          <button
+            onClick={startEdit}
+            className="w-full text-sm text-[#40916C] border border-dashed border-[#D8F3DC] rounded-xl py-2 hover:bg-[#D8F3DC]/40 transition-colors font-medium"
+          >
+            + Set your name
+          </button>
+        )}
       </div>
     </>
   );
@@ -104,10 +149,7 @@ export default function Sidebar() {
           </div>
           <span className="font-bold text-[#1B4332] text-lg">PaisaOS</span>
         </Link>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 rounded-lg hover:bg-[#D8F3DC] text-[#1B4332] transition-colors"
-        >
+        <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-lg hover:bg-[#D8F3DC] text-[#1B4332] transition-colors">
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
@@ -115,10 +157,7 @@ export default function Sidebar() {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-30">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMobileOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
           <aside className="absolute top-0 left-0 h-full w-72 bg-white flex flex-col shadow-2xl">
             <NavContent />
           </aside>

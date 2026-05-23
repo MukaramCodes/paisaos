@@ -23,6 +23,7 @@ import {
   ArrowUpRight,
   Zap,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import MetricCard from '@/components/MetricCard';
 
 const netWorthHistory = [
@@ -55,6 +56,11 @@ const fmt = (n: number) =>
 
 export default function DashboardPage() {
   const [imr] = useState(73);
+  const [userName, setUserName] = useState('');
+  useEffect(() => {
+    const saved = localStorage.getItem('paisaos_username');
+    if (saved) setUserName(saved);
+  }, []);
 
   const imrLabel = imr >= 80 ? 'Excellent' : imr >= 65 ? 'Good' : imr >= 50 ? 'Fair' : 'Needs work';
   const imrColor = imr >= 80 ? '#2D6A4F' : imr >= 65 ? '#40916C' : imr >= 50 ? '#d97706' : '#dc2626';
@@ -63,7 +69,7 @@ export default function DashboardPage() {
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-extrabold text-[#1B4332]">Good morning, Ali 👋</h1>
+        <h1 className="text-2xl font-extrabold text-[#1B4332]">Good morning{userName ? `, ${userName}` : ''} 👋</h1>
         <p className="text-sm text-[#40916C] mt-1">Here&apos;s your financial pulse for May 2025</p>
       </div>
 

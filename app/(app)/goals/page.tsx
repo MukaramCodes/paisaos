@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
 
 interface Goal {
@@ -49,6 +49,18 @@ const isOnTrack = (goal: Goal) => {
 
 export default function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>(initGoals);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('paisaos_goals');
+    if (saved) setGoals(JSON.parse(saved));
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem('paisaos_goals', JSON.stringify(goals));
+  }, [goals, mounted]);
+
   const [showAdd, setShowAdd] = useState(false);
   const [newGoal, setNewGoal] = useState({ name: '', emoji: '🎯', target: '', monthly: '', deadline: '' });
   const [filter, setFilter] = useState<'all' | 'on-track' | 'at-risk'>('all');

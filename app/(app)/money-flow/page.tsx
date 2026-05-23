@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -9,11 +9,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from 'recharts';
 import { Info } from 'lucide-react';
 
-const INCOME = 120000;
+const DEFAULT_INCOME = 120000;
 
 const flowCategories = [
   {
@@ -70,10 +69,33 @@ const monthlyData = [
 ];
 
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
-const pct = (n: number) => Math.round((n / INCOME) * 100);
+const pct = (n: number, income: number) => income > 0 ? Math.round((n / income) * 100) : 0;
 
 export default function MoneyFlowPage() {
-  const [income, setIncome] = useState(INCOME);
+  const [income, setIncome] = useState(DEFAULT_INCOME);
+  const [inputVal, setInputVal] = useState(DEFAULT_INCOME.toString());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('paisaos_income');
+    if (saved) {
+      const n = Number(saved);
+      setIncome(n);
+      setInputVal(n.toString());
+    }
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem('paisaos_income', income.toString());
+  }, [income, mounted]);
+
+  const handleIncomeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^0-9]/g, '');
+    const stripped = raw.replace(/^0+(\d)/, '$1');
+    setInputVal(stripped);
+    setIncome(stripped ? parseInt(stripped, 10) : 0);
+  };
 
   const totalSpent = flowCategories
     .flatMap((c) => c.items)
@@ -85,25 +107,23 @@ export default function MoneyFlowPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold text-[#1B4332]">Money Flow</h1>
-        <p className="text-sm text-[#40916C] mt-1">
-          See exactly where every rupee goes this month
-        </p>
+        <p className="text-sm text-[#40916C] mt-1">See exactly where every rupee goes this month</p>
       </div>
 
       {/* Income Input */}
       <div className="bg-white rounded-2xl p-6 shadow-card">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-semibold text-[#1B4332] mb-1">
-              Monthly Net Income
-            </label>
+            <label className="block text-sm font-semibold text-[#1B4332] mb-1">Monthly Net Income</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#40916C] font-bold">₨</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#40916C] font-bold text-sm">Rs</span>
               <input
-                type="number"
-                value={income}
-                onChange={(e) => setIncome(Number(e.target.value))}
-                className="w-full pl-8 pr-4 py-3 border border-[#D8F3DC] rounded-xl text-lg font-bold text-[#1B4332] focus:outline-none focus:ring-2 focus:ring-[#40916C] bg-[#F4EFE6]"
+                type="text"
+                inputMode="numeric"
+                value={inputVal}
+                onChange={handleIncomeChange}
+                placeholder="Enter your income"
+                className="w-full pl-10 pr-4 py-3 border border-[#D8F3DC] rounded-xl text-lg font-bold text-[#1B4332] focus:outline-none focus:ring-2 focus:ring-[#40916C] bg-[#F4EFE6]"
               />
             </div>
           </div>
@@ -111,7 +131,7 @@ export default function MoneyFlowPage() {
             <div className="bg-[#F4EFE6] rounded-xl px-4 py-3">
               <p className="text-xs text-gray-500 font-medium">Spent</p>
               <p className="text-lg font-bold text-[#1B4332]">{fmt(totalSpent)}</p>
-              <p className="text-xs text-gray-400">{pct(totalSpent)}% of income</p>
+              <p className="text-xs text-gray-400">{pct(totalSpent, income)}% of income</p>
             </div>
             <div className={`rounded-xl px-4 py-3 ${unallocated >= 0 ? 'bg-[#D8F3DC]' : 'bg-red-50'}`}>
               <p className="text-xs text-gray-500 font-medium">Unallocated</p>
@@ -128,7 +148,7 @@ export default function MoneyFlowPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         {flowCategories.map((cat) => {
           const catTotal = cat.items.reduce((s, i) => s + i.amount, 0);
-          const catPct = pct(catTotal);
+          const catPct = pct(catTotal, income);
           const targetDiff = catPct - cat.target;
           return (
             <div key={cat.label} className="bg-white rounded-2xl p-6 shadow-card">
@@ -145,7 +165,6 @@ export default function MoneyFlowPage() {
                 </div>
               </div>
 
-              {/* Progress bar */}
               <div className="mb-1">
                 <div className="flex justify-between text-xs text-gray-400 mb-1">
                   <span>{fmt(catTotal)}</span>
@@ -161,7 +180,6 @@ export default function MoneyFlowPage() {
                 </div>
               </div>
 
-              {/* Items */}
               <div className="mt-4 space-y-2">
                 {cat.items.map((item) => (
                   <div key={item.name} className="flex items-center justify-between">
@@ -187,7 +205,7 @@ export default function MoneyFlowPage() {
         <div className="grid sm:grid-cols-3 gap-4">
           {flowCategories.map((cat) => {
             const catTotal = cat.items.reduce((s, i) => s + i.amount, 0);
-            const actual = pct(catTotal);
+            const actual = pct(catTotal, income);
             const ok = cat.label === 'Savings & Investments' ? actual >= cat.target : actual <= cat.target;
             return (
               <div

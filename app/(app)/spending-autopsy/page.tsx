@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   PieChart,
   Pie,
@@ -14,19 +14,29 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
-import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
+import { AlertTriangle, TrendingDown, TrendingUp, Plus, Trash2 } from 'lucide-react';
 
-const categories = [
-  { name: 'Rent', amount: 25000, budget: 25000, type: 'Needs', color: '#1B4332', intentional: true },
-  { name: 'Groceries', amount: 12000, budget: 15000, type: 'Needs', color: '#2D6A4F', intentional: true },
-  { name: 'Utilities', amount: 8200, budget: 8000, type: 'Needs', color: '#40916C', intentional: true },
-  { name: 'Transport', amount: 6000, budget: 6000, type: 'Needs', color: '#52B788', intentional: true },
-  { name: 'Medical', amount: 3000, budget: 5000, type: 'Needs', color: '#74C69D', intentional: true },
-  { name: 'Dining Out', amount: 8000, budget: 5000, type: 'Wants', color: '#d97706', intentional: false },
-  { name: 'Shopping', amount: 7400, budget: 5000, type: 'Wants', color: '#f59e0b', intentional: false },
-  { name: 'Entertainment', amount: 5000, budget: 4000, type: 'Wants', color: '#fbbf24', intentional: true },
-  { name: 'Subscriptions', amount: 3200, budget: 3000, type: 'Wants', color: '#fcd34d', intentional: true },
-  { name: 'Misc / Impulse', amount: 2800, budget: 1000, type: 'Wants', color: '#ef4444', intentional: false },
+interface Category {
+  id: number;
+  name: string;
+  amount: number;
+  budget: number;
+  type: 'Needs' | 'Wants';
+  color: string;
+  intentional: boolean;
+}
+
+const initCategories: Category[] = [
+  { id: 1, name: 'Rent', amount: 25000, budget: 25000, type: 'Needs', color: '#1B4332', intentional: true },
+  { id: 2, name: 'Groceries', amount: 12000, budget: 15000, type: 'Needs', color: '#2D6A4F', intentional: true },
+  { id: 3, name: 'Utilities', amount: 8200, budget: 8000, type: 'Needs', color: '#40916C', intentional: true },
+  { id: 4, name: 'Transport', amount: 6000, budget: 6000, type: 'Needs', color: '#52B788', intentional: true },
+  { id: 5, name: 'Medical', amount: 3000, budget: 5000, type: 'Needs', color: '#74C69D', intentional: true },
+  { id: 6, name: 'Dining Out', amount: 8000, budget: 5000, type: 'Wants', color: '#d97706', intentional: false },
+  { id: 7, name: 'Shopping', amount: 7400, budget: 5000, type: 'Wants', color: '#f59e0b', intentional: false },
+  { id: 8, name: 'Entertainment', amount: 5000, budget: 4000, type: 'Wants', color: '#fbbf24', intentional: true },
+  { id: 9, name: 'Subscriptions', amount: 3200, budget: 3000, type: 'Wants', color: '#fcd34d', intentional: true },
+  { id: 10, name: 'Misc / Impulse', amount: 2800, budget: 1000, type: 'Wants', color: '#ef4444', intentional: false },
 ];
 
 const weeklyData = [
@@ -36,39 +46,169 @@ const weeklyData = [
   { week: 'Wk 4', needs: 15900, wants: 1800 },
 ];
 
+const COLORS = ['#1B4332','#2D6A4F','#40916C','#52B788','#74C69D','#d97706','#f59e0b','#fbbf24','#ef4444','#e879f9','#60a5fa','#f87171'];
+
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 
 export default function SpendingAutopsyPage() {
+  const [categories, setCategories] = useState<Category[]>(initCategories);
+  const [mounted, setMounted] = useState(false);
   const [selectedType, setSelectedType] = useState<'All' | 'Needs' | 'Wants'>('All');
+  const [showAdd, setShowAdd] = useState(false);
+  const [newEntry, setNewEntry] = useState({
+    name: '',
+    amount: '',
+    budget: '',
+    type: 'Needs' as 'Needs' | 'Wants',
+    intentional: true,
+  });
+
+  useEffect(() => {
+    const saved = localStorage.getItem('paisaos_spending');
+    if (saved) setCategories(JSON.parse(saved));
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem('paisaos_spending', JSON.stringify(categories));
+  }, [categories, mounted]);
+
+  const addEntry = () => {
+    if (!newEntry.name || !newEntry.amount) return;
+    const colorIndex = categories.length % COLORS.length;
+    setCategories([...categories, {
+      id: Date.now(),
+      name: newEntry.name,
+      amount: Number(newEntry.amount),
+      budget: Number(newEntry.budget) || Number(newEntry.amount),
+      type: newEntry.type,
+      color: COLORS[colorIndex],
+      intentional: newEntry.intentional,
+    }]);
+    setNewEntry({ name: '', amount: '', budget: '', type: 'Needs', intentional: true });
+    setShowAdd(false);
+  };
+
+  const deleteEntry = (id: number) => setCategories(categories.filter((c) => c.id !== id));
 
   const filtered = selectedType === 'All' ? categories : categories.filter((c) => c.type === selectedType);
   const total = filtered.reduce((s, c) => s + c.amount, 0);
+  const totalAll = categories.reduce((s, c) => s + c.amount, 0);
   const overBudget = filtered.filter((c) => c.amount > c.budget);
   const autopilot = categories.filter((c) => !c.intentional).reduce((s, c) => s + c.amount, 0);
-  const intentionalTotal = categories.reduce((s, c) => s + c.amount, 0);
-  const imr = Math.round(((intentionalTotal - autopilot) / intentionalTotal) * 100);
+  const imr = totalAll > 0 ? Math.round(((totalAll - autopilot) / totalAll) * 100) : 100;
 
   const pieData = filtered.map((c) => ({ name: c.name, value: c.amount, color: c.color }));
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-extrabold text-[#1B4332]">Spending Autopsy</h1>
-        <p className="text-sm text-[#40916C] mt-1">Understand your spending without judgement</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#1B4332]">Spending Autopsy</h1>
+          <p className="text-sm text-[#40916C] mt-1">Understand your spending without judgement</p>
+        </div>
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-2 bg-[#1B4332] text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#2D6A4F] transition-colors shadow-sm"
+        >
+          <Plus size={16} /> Add Spending
+        </button>
       </div>
+
+      {/* Add Spending Modal */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="font-bold text-[#1B4332] text-lg mb-4">Add Spending Entry</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Category Name</label>
+                <input
+                  value={newEntry.name}
+                  onChange={(e) => setNewEntry({ ...newEntry, name: e.target.value })}
+                  placeholder="e.g. Electricity Bill"
+                  className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Amount Spent (₨)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={newEntry.amount}
+                    onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value.replace(/[^0-9]/g, '') })}
+                    placeholder="e.g. 5000"
+                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Monthly Budget (₨)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={newEntry.budget}
+                    onChange={(e) => setNewEntry({ ...newEntry, budget: e.target.value.replace(/[^0-9]/g, '') })}
+                    placeholder="e.g. 4000"
+                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Type</label>
+                  <select
+                    value={newEntry.type}
+                    onChange={(e) => setNewEntry({ ...newEntry, type: e.target.value as 'Needs' | 'Wants' })}
+                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
+                  >
+                    <option value="Needs">Needs</option>
+                    <option value="Wants">Wants</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Was it intentional?</label>
+                  <select
+                    value={newEntry.intentional ? 'yes' : 'no'}
+                    onChange={(e) => setNewEntry({ ...newEntry, intentional: e.target.value === 'yes' })}
+                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
+                  >
+                    <option value="yes">Yes – planned</option>
+                    <option value="no">No – autopilot</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAdd(false)}
+                className="flex-1 py-2.5 border border-[#D8F3DC] rounded-xl text-sm font-medium text-gray-500 hover:bg-[#F4EFE6] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addEntry}
+                className="flex-1 py-2.5 bg-[#1B4332] text-white rounded-xl text-sm font-semibold hover:bg-[#2D6A4F] transition-colors"
+              >
+                Add Entry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-card">
           <p className="text-xs text-gray-500 font-medium">Total Spent</p>
-          <p className="text-xl font-bold text-[#1B4332] mt-1">{fmt(categories.reduce((s, c) => s + c.amount, 0))}</p>
-          <p className="text-xs text-gray-400">May 2025</p>
+          <p className="text-xl font-bold text-[#1B4332] mt-1">{fmt(totalAll)}</p>
+          <p className="text-xs text-gray-400">{categories.length} categories</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-card">
           <p className="text-xs text-gray-500 font-medium">Intentional Money Rate</p>
           <p className="text-xl font-bold text-[#1B4332] mt-1">{imr}%</p>
-          <p className="text-xs text-[#40916C]">Good range</p>
+          <p className="text-xs text-[#40916C]">{imr >= 70 ? 'Good range' : imr >= 50 ? 'Fair' : 'Needs work'}</p>
         </div>
         <div className="bg-red-50 rounded-2xl p-4 shadow-card">
           <p className="text-xs text-gray-500 font-medium">Autopilot Spending</p>
@@ -104,9 +244,7 @@ export default function SpendingAutopsyPage() {
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value">
-                {pieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
+                {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
               <Tooltip formatter={(v: number) => fmt(v)} />
               <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
@@ -139,14 +277,12 @@ export default function SpendingAutopsyPage() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {overBudget.map((c) => (
-              <div key={c.name} className="bg-white rounded-xl p-3 border border-orange-100">
+              <div key={c.id} className="bg-white rounded-xl p-3 border border-orange-100">
                 <div className="flex justify-between items-start">
                   <p className="font-semibold text-[#1C1C1C] text-sm">{c.name}</p>
                   <span className="text-xs text-red-500 font-bold">+{fmt(c.amount - c.budget)}</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Spent {fmt(c.amount)} vs budget {fmt(c.budget)}
-                </p>
+                <p className="text-xs text-gray-400 mt-1">Spent {fmt(c.amount)} vs budget {fmt(c.budget)}</p>
               </div>
             ))}
           </div>
@@ -155,19 +291,20 @@ export default function SpendingAutopsyPage() {
 
       {/* Category Table */}
       <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-        <div className="p-5 border-b border-gray-100">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-bold text-[#1B4332]">All Categories</h3>
+          <span className="text-xs text-gray-400">{categories.length} entries · {fmt(totalAll)} total</span>
         </div>
         <div className="divide-y divide-gray-50">
           {categories.map((c) => {
             const over = c.amount > c.budget;
-            const pct = Math.min(Math.round((c.amount / c.budget) * 100), 150);
+            const barPct = Math.min(Math.round((c.amount / Math.max(c.budget, 1)) * 100), 150);
             return (
-              <div key={c.name} className="px-5 py-4 hover:bg-[#F4EFE6]/50 transition-colors">
+              <div key={c.id} className="px-5 py-4 hover:bg-[#F4EFE6]/50 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-sm font-medium text-[#1C1C1C]">{c.name}</span>
                       <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{c.type}</span>
                       {!c.intentional && (
@@ -179,7 +316,7 @@ export default function SpendingAutopsyPage() {
                     <div className="h-1.5 bg-[#F4EFE6] rounded-full overflow-hidden w-full max-w-xs">
                       <div
                         className="h-full rounded-full transition-all"
-                        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: over ? '#ef4444' : c.color }}
+                        style={{ width: `${Math.min(barPct, 100)}%`, backgroundColor: over ? '#ef4444' : c.color }}
                       />
                     </div>
                   </div>
@@ -189,12 +326,14 @@ export default function SpendingAutopsyPage() {
                     </p>
                     <p className="text-xs text-gray-400">of {fmt(c.budget)}</p>
                   </div>
-                  <div className="flex-shrink-0">
-                    {over ? (
-                      <TrendingUp size={16} className="text-red-400" />
-                    ) : (
-                      <TrendingDown size={16} className="text-[#40916C]" />
-                    )}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {over ? <TrendingUp size={16} className="text-red-400" /> : <TrendingDown size={16} className="text-[#40916C]" />}
+                    <button
+                      onClick={() => deleteEntry(c.id)}
+                      className="text-gray-300 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               </div>
