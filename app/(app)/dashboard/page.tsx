@@ -64,7 +64,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold text-[#1B4332]">Good morning, Ali 👋</h1>
-        <p className="text-sm text-[#40916C] mt-1">Here's your financial pulse for May 2025</p>
+        <p className="text-sm text-[#40916C] mt-1">Here&apos;s your financial pulse for May 2025</p>
       </div>
 
       {/* Metric Cards */}
