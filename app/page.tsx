@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import SessionRedirect from '@/components/SessionRedirect';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -63,6 +64,7 @@ const benefits = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#F4EFE6]">
+      <SessionRedirect />
       {/* Nav */}
       <header className="sticky top-0 z-20 bg-[#F4EFE6]/90 backdrop-blur-sm border-b border-[#E2D9CC]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">

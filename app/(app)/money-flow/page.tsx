@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { Info } from 'lucide-react';
 
-const DEFAULT_INCOME = 120000;
+const DEFAULT_INCOME = 0;
 
 const flowCategories = [
   {

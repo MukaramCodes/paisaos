@@ -31,21 +31,9 @@ interface Liability {
   category: string;
 }
 
-const initAssets: Asset[] = [
-  { id: 1, name: 'Bank Account (MCB)', amount: 120000, category: 'Cash', color: '#1B4332' },
-  { id: 2, name: 'Meezan Bank Savings', amount: 85000, category: 'Cash', color: '#2D6A4F' },
-  { id: 3, name: 'Mutual Funds (Al-Meezan)', amount: 250000, category: 'Investments', color: '#40916C' },
-  { id: 4, name: 'Stocks (PSX)', amount: 90000, category: 'Investments', color: '#52B788' },
-  { id: 5, name: 'Motorcycle', amount: 180000, category: 'Vehicles', color: '#74C69D' },
-  { id: 6, name: 'Electronics & Gadgets', amount: 75000, category: 'Personal', color: '#95D5B2' },
-  { id: 7, name: 'Gold Jewelry', amount: 220000, category: 'Physical Assets', color: '#B7E4C7' },
-];
+const initAssets: Asset[] = [];
 
-const initLiabilities: Liability[] = [
-  { id: 1, name: 'Meezan Car Finance', amount: 180000, category: 'Loan' },
-  { id: 2, name: 'Credit Card (HBL)', amount: 42000, category: 'Credit Card' },
-  { id: 3, name: 'Owed to Family', amount: 50000, category: 'Personal Loan' },
-];
+const initLiabilities: Liability[] = [];
 
 const historyData = [
   { month: 'Nov', netWorth: 620000 },

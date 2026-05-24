@@ -14,14 +14,7 @@ interface Goal {
   category: string;
 }
 
-const initGoals: Goal[] = [
-  { id: 1, name: 'Emergency Fund (6 months)', emoji: '🛡️', current: 90000, target: 180000, deadline: '2025-12-31', monthly: 15000, category: 'Protection' },
-  { id: 2, name: 'Car Down Payment', emoji: '🚗', current: 220000, target: 600000, deadline: '2026-06-30', monthly: 25000, category: 'Lifestyle' },
-  { id: 3, name: 'House Down Payment', emoji: '🏠', current: 800000, target: 5000000, deadline: '2030-01-01', monthly: 40000, category: 'Property' },
-  { id: 4, name: 'Hajj Fund', emoji: '🕌', current: 250000, target: 1000000, deadline: '2028-01-01', monthly: 20000, category: 'Spiritual' },
-  { id: 5, name: 'Children\'s Education', emoji: '📚', current: 120000, target: 2000000, deadline: '2035-09-01', monthly: 15000, category: 'Education' },
-  { id: 6, name: 'Laptop Upgrade', emoji: '💻', current: 45000, target: 80000, deadline: '2025-08-31', monthly: 3600, category: 'Tech' },
-];
+const initGoals: Goal[] = [];
 
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 

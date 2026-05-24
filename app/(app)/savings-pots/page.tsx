@@ -13,14 +13,7 @@ interface Pot {
   monthlyAdd: number;
 }
 
-const initPots: Pot[] = [
-  { id: 1, name: 'Emergency Fund', emoji: '🛡️', current: 90000, target: 180000, color: '#1B4332', monthlyAdd: 15000 },
-  { id: 2, name: 'Eid Shopping', emoji: '🎁', current: 18000, target: 30000, color: '#40916C', monthlyAdd: 5000 },
-  { id: 3, name: 'Hajj Fund', emoji: '🕌', current: 250000, target: 1000000, color: '#2D6A4F', monthlyAdd: 20000 },
-  { id: 4, name: 'Laptop Upgrade', emoji: '💻', current: 45000, target: 80000, color: '#74C69D', monthlyAdd: 3600 },
-  { id: 5, name: 'Vacation – North', emoji: '🏔️', current: 22000, target: 60000, color: '#52B788', monthlyAdd: 8000 },
-  { id: 6, name: 'Car Down Payment', emoji: '🚗', current: 220000, target: 600000, color: '#095D40', monthlyAdd: 10000 },
-];
+const initPots: Pot[] = [];
 
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 

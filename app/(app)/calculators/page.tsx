@@ -15,23 +15,27 @@ import {
 import { Calculator, TrendingUp, Home, Car } from 'lucide-react';
 
 const fmt = (n: number) => '₨ ' + Math.round(n).toLocaleString('en-PK');
+const safe = (n: number) => (isFinite(n) && !isNaN(n) ? n : 0);
 
 // --- EMI Calculator ---
 function EmiCalculator() {
-  const [principal, setPrincipal] = useState(2000000);
-  const [rate, setRate] = useState(22);
-  const [years, setYears] = useState(5);
+  const [principal, setPrincipal] = useState(0);
+  const [rate, setRate] = useState(0);
+  const [years, setYears] = useState(0);
 
   const monthlyRate = rate / 100 / 12;
   const n = years * 12;
-  const emi = principal * (monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1);
-  const totalPay = emi * n;
-  const totalInterest = totalPay - principal;
+  const emiRaw = principal * (monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1);
+  const emi = safe(emiRaw);
+  const totalPay = safe(emi * n);
+  const totalInterest = safe(totalPay - principal);
 
-  const schedule = Array.from({ length: Math.min(n, 60) }, (_, i) => {
-    const outstanding = principal * Math.pow(1 + monthlyRate, i + 1) - emi * ((Math.pow(1 + monthlyRate, i + 1) - 1) / monthlyRate);
-    return { month: i + 1, balance: Math.max(0, outstanding) };
-  });
+  const schedule = emi > 0 && n > 0
+    ? Array.from({ length: Math.min(n, 60) }, (_, i) => {
+        const outstanding = principal * Math.pow(1 + monthlyRate, i + 1) - emi * ((Math.pow(1 + monthlyRate, i + 1) - 1) / monthlyRate);
+        return { month: i + 1, balance: Math.max(0, safe(outstanding)) };
+      })
+    : [];
 
   return (
     <div className="space-y-5">
@@ -48,7 +52,7 @@ function EmiCalculator() {
         </div>
         <div>
           <label className="text-xs font-semibold text-gray-500 mb-1 block">Loan Term (years)</label>
-          <input type="number" value={years} onChange={(e) => setYears(Number(e.target.value))} min={1} max={30}
+          <input type="number" value={years} onChange={(e) => setYears(Number(e.target.value))} min={0} max={30}
             className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]" />
         </div>
       </div>
@@ -70,21 +74,27 @@ function EmiCalculator() {
 
       <div>
         <p className="text-xs font-semibold text-gray-500 mb-2">Loan Balance Over Time</p>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={schedule}>
-            <defs>
-              <linearGradient id="loanGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#1B4332" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#1B4332" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: 'months', position: 'insideRight', fontSize: 10 }} />
-            <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip formatter={(v: number) => [fmt(v), 'Outstanding']} />
-            <Area type="monotone" dataKey="balance" stroke="#1B4332" strokeWidth={2} fill="url(#loanGrad)" />
-          </AreaChart>
-        </ResponsiveContainer>
+        {schedule.length > 0 ? (
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={schedule}>
+              <defs>
+                <linearGradient id="loanGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#1B4332" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#1B4332" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+              <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: 'months', position: 'insideRight', fontSize: 10 }} />
+              <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: number) => [fmt(v), 'Outstanding']} />
+              <Area type="monotone" dataKey="balance" stroke="#1B4332" strokeWidth={2} fill="url(#loanGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[160px] flex items-center justify-center bg-[#F4EFE6] rounded-xl">
+            <p className="text-sm text-gray-400">Enter loan details above to see the repayment chart</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -92,19 +102,23 @@ function EmiCalculator() {
 
 // --- Savings Growth Calculator ---
 function SavingsCalculator() {
-  const [monthly, setMonthly] = useState(10000);
-  const [rate, setRate] = useState(12);
-  const [years, setYears] = useState(10);
-  const [initial, setInitial] = useState(50000);
+  const [monthly, setMonthly] = useState(0);
+  const [rate, setRate] = useState(0);
+  const [years, setYears] = useState(0);
+  const [initial, setInitial] = useState(0);
 
-  const data = Array.from({ length: years + 1 }, (_, i) => {
-    const contributed = initial + monthly * 12 * i;
-    const grown = initial * Math.pow(1 + rate / 100, i) +
-      monthly * 12 * ((Math.pow(1 + rate / 100, i) - 1) / (rate / 100));
-    return { year: i, contributed, grown };
-  });
+  const data = years > 0
+    ? Array.from({ length: years + 1 }, (_, i) => {
+        const contributed = initial + monthly * 12 * i;
+        const grown = rate > 0
+          ? initial * Math.pow(1 + rate / 100, i) +
+            monthly * 12 * ((Math.pow(1 + rate / 100, i) - 1) / (rate / 100))
+          : initial + monthly * 12 * i;
+        return { year: i, contributed: safe(contributed), grown: safe(grown) };
+      })
+    : [{ year: 0, contributed: initial, grown: initial }];
 
-  const final = data[years];
+  const final = data[data.length - 1];
 
   return (
     <div className="space-y-5">
@@ -126,7 +140,7 @@ function SavingsCalculator() {
         </div>
         <div>
           <label className="text-xs font-semibold text-gray-500 mb-1 block">Investment Period (years)</label>
-          <input type="number" value={years} onChange={(e) => setYears(Number(e.target.value))} min={1} max={40}
+          <input type="number" value={years} onChange={(e) => setYears(Number(e.target.value))} min={0} max={40}
             className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]" />
         </div>
       </div>
@@ -142,22 +156,28 @@ function SavingsCalculator() {
         </div>
         <div className="bg-[#D8F3DC] rounded-xl p-4 text-center">
           <p className="text-xs text-gray-500 font-medium mb-1">Growth / Returns</p>
-          <p className="text-xl font-bold text-[#2D6A4F]">{fmt((final?.grown || 0) - (final?.contributed || 0))}</p>
+          <p className="text-xl font-bold text-[#2D6A4F]">{fmt(safe((final?.grown || 0) - (final?.contributed || 0)))}</p>
         </div>
       </div>
 
       <div>
         <p className="text-xs font-semibold text-gray-500 mb-2">Growth vs Contributions</p>
-        <ResponsiveContainer width="100%" height={180}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-            <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: 'years', position: 'insideRight', fontSize: 10 }} />
-            <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip formatter={(v: number, name: string) => [fmt(v), name === 'grown' ? 'With returns' : 'Contributed']} />
-            <Line type="monotone" dataKey="contributed" stroke="#D8F3DC" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="grown" stroke="#1B4332" strokeWidth={2.5} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        {years > 0 ? (
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+              <XAxis dataKey="year" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: 'years', position: 'insideRight', fontSize: 10 }} />
+              <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: number, name: string) => [fmt(v), name === 'grown' ? 'With returns' : 'Contributed']} />
+              <Line type="monotone" dataKey="contributed" stroke="#D8F3DC" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="grown" stroke="#1B4332" strokeWidth={2.5} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[180px] flex items-center justify-center bg-[#F4EFE6] rounded-xl">
+            <p className="text-sm text-gray-400">Enter savings details above to see growth projection</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -165,18 +185,22 @@ function SavingsCalculator() {
 
 // --- Affordability Calculator ---
 function AffordabilityCalculator() {
-  const [income, setIncome] = useState(120000);
-  const [expenses, setExpenses] = useState(80000);
-  const [downPct, setDownPct] = useState(20);
-  const [rate, setRate] = useState(22);
-  const [years, setYears] = useState(20);
+  const [income, setIncome] = useState(0);
+  const [expenses, setExpenses] = useState(0);
+  const [downPct, setDownPct] = useState(0);
+  const [rate, setRate] = useState(0);
+  const [years, setYears] = useState(0);
 
   const disposable = income - expenses;
   const maxEmi = disposable * 0.4;
   const monthlyRate = rate / 100 / 12;
   const n = years * 12;
-  const maxLoan = maxEmi * ((1 - Math.pow(1 + monthlyRate, -n)) / monthlyRate);
-  const maxPropertyValue = maxLoan / (1 - downPct / 100);
+  const maxLoanRaw = monthlyRate > 0 && n > 0
+    ? maxEmi * ((1 - Math.pow(1 + monthlyRate, -n)) / monthlyRate)
+    : maxEmi * n;
+  const maxLoan = safe(maxLoanRaw);
+  const divisor = 1 - downPct / 100;
+  const maxPropertyValue = safe(divisor > 0 ? maxLoan / divisor : 0);
 
   return (
     <div className="space-y-5">
@@ -193,12 +217,12 @@ function AffordabilityCalculator() {
         </div>
         <div>
           <label className="text-xs font-semibold text-gray-500 mb-1 block">Down Payment (%)</label>
-          <input type="number" value={downPct} onChange={(e) => setDownPct(Number(e.target.value))} min={10} max={50}
+          <input type="number" value={downPct} onChange={(e) => setDownPct(Number(e.target.value))} min={0} max={100}
             className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]" />
         </div>
         <div>
           <label className="text-xs font-semibold text-gray-500 mb-1 block">Loan Term (years)</label>
-          <input type="number" value={years} onChange={(e) => setYears(Number(e.target.value))} min={5} max={30}
+          <input type="number" value={years} onChange={(e) => setYears(Number(e.target.value))} min={0} max={30}
             className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]" />
         </div>
       </div>

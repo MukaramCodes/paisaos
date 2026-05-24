@@ -26,18 +26,7 @@ interface Category {
   intentional: boolean;
 }
 
-const initCategories: Category[] = [
-  { id: 1, name: 'Rent', amount: 25000, budget: 25000, type: 'Needs', color: '#1B4332', intentional: true },
-  { id: 2, name: 'Groceries', amount: 12000, budget: 15000, type: 'Needs', color: '#2D6A4F', intentional: true },
-  { id: 3, name: 'Utilities', amount: 8200, budget: 8000, type: 'Needs', color: '#40916C', intentional: true },
-  { id: 4, name: 'Transport', amount: 6000, budget: 6000, type: 'Needs', color: '#52B788', intentional: true },
-  { id: 5, name: 'Medical', amount: 3000, budget: 5000, type: 'Needs', color: '#74C69D', intentional: true },
-  { id: 6, name: 'Dining Out', amount: 8000, budget: 5000, type: 'Wants', color: '#d97706', intentional: false },
-  { id: 7, name: 'Shopping', amount: 7400, budget: 5000, type: 'Wants', color: '#f59e0b', intentional: false },
-  { id: 8, name: 'Entertainment', amount: 5000, budget: 4000, type: 'Wants', color: '#fbbf24', intentional: true },
-  { id: 9, name: 'Subscriptions', amount: 3200, budget: 3000, type: 'Wants', color: '#fcd34d', intentional: true },
-  { id: 10, name: 'Misc / Impulse', amount: 2800, budget: 1000, type: 'Wants', color: '#ef4444', intentional: false },
-];
+const initCategories: Category[] = [];
 
 const weeklyData = [
   { week: 'Wk 1', needs: 14000, wants: 8000 },
