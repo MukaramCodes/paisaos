@@ -1,35 +1,33 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
 import { migrateOrPull, syncPendingToCloud, getPendingCount } from '@/lib/sync';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  uid: string | null;
+  name: string;
   loading: boolean;
   isOnline: boolean;
   pendingCount: number;
-  signOut: () => Promise<void>;
+  clearIdentity: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
+  uid: null,
+  name: '',
   loading: true,
   isOnline: true,
   pendingCount: 0,
-  signOut: async () => {},
+  clearIdentity: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]               = useState<User | null>(null);
-  const [session, setSession]         = useState<Session | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [isOnline, setIsOnline]       = useState(true);
+  const [uid, setUid]                   = useState<string | null>(null);
+  const [name, setName]                 = useState('');
+  const [loading, setLoading]           = useState(true);
+  const [isOnline, setIsOnline]         = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const interval  = useRef<ReturnType<typeof setInterval> | null>(null);
   const onlineRef = useRef(true);
@@ -48,59 +46,45 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   useEffect(() => {
-    const goOnline = () => { onlineRef.current = true; setIsOnline(true); };
+    const goOnline  = () => { onlineRef.current = true;  setIsOnline(true);  };
     const goOffline = () => { onlineRef.current = false; setIsOnline(false); };
-    window.addEventListener('online', goOnline);
+    window.addEventListener('online',  goOnline);
     window.addEventListener('offline', goOffline);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        migrateOrPull(session.user.id)
-          .catch(() => {})
-          .finally(() => {
-            setPendingCount(getPendingCount());
-            startSync(session!.user.id);
-            setLoading(false);
-          });
-      } else {
-        setLoading(false);
-      }
-    });
+    const storedUid  = localStorage.getItem('paisaos_uid');
+    const storedName = localStorage.getItem('paisaos_username') || '';
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await migrateOrPull(session.user.id).catch(() => {});
-        setPendingCount(getPendingCount());
-        startSync(session.user.id);
-      } else {
-        stopSync();
-        setPendingCount(0);
-      }
+    if (storedUid) {
+      setUid(storedUid);
+      setName(storedName);
+      migrateOrPull(storedUid)
+        .catch(() => {})
+        .finally(() => {
+          setPendingCount(getPendingCount());
+          startSync(storedUid);
+          setLoading(false);
+        });
+    } else {
       setLoading(false);
-    });
+    }
 
     return () => {
-      subscription.unsubscribe();
       stopSync();
-      window.removeEventListener('online', goOnline);
+      window.removeEventListener('online',  goOnline);
       window.removeEventListener('offline', goOffline);
     };
   }, []);
 
-  const signOut = async () => {
-    if (user && onlineRef.current) {
-      await syncPendingToCloud(user.id).catch(() => {});
-    }
+  const clearIdentity = () => {
     stopSync();
-    await supabase.auth.signOut();
+    localStorage.removeItem('paisaos_uid');
+    localStorage.removeItem('paisaos_username');
+    setUid(null);
+    setName('');
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isOnline, pendingCount, signOut }}>
+    <AuthContext.Provider value={{ uid, name, loading, isOnline, pendingCount, clearIdentity }}>
       {children}
     </AuthContext.Provider>
   );

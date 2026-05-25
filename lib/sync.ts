@@ -179,17 +179,10 @@ async function _pushAllLocalToCloud(userId: string): Promise<void> {
   await supabase.from('user_data').upsert(rows, { onConflict: 'user_id,key' });
 }
 
-// ─── Delete data / account ────────────────────────────────────────────────────
+// ─── Delete data ──────────────────────────────────────────────────────────────
 
 export async function deleteUserData(userId: string): Promise<void> {
   await supabase.from('user_data').delete().eq('user_id', userId);
-  _wipeLocalStorage();
-}
-
-/** Calls a Supabase RPC that deletes data + auth user atomically. */
-export async function deleteUserAccount(): Promise<void> {
-  const { error } = await supabase.rpc('delete_user_account');
-  if (error) throw new Error(error.message);
   _wipeLocalStorage();
 }
 
