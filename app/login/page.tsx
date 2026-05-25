@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { keyToUserId } from '@/lib/identity';
+import { useAuth } from '@/components/AuthProvider';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { setIdentity } = useAuth();
   const [name, setName]       = useState('');
   const [key, setKey]         = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -20,9 +22,11 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
+      const trimmedName = name.trim();
       const uid = await keyToUserId(key);
-      localStorage.setItem('paisaos_username', name.trim());
+      localStorage.setItem('paisaos_username', trimmedName);
       localStorage.setItem('paisaos_uid', uid);
+      setIdentity(uid, trimmedName); // update AuthProvider state directly
       router.replace('/dashboard');
     } catch {
       setError('Something went wrong. Try again.');

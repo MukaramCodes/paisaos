@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isOnline: boolean;
   pendingCount: number;
+  setIdentity: (uid: string, name: string) => void;
   clearIdentity: () => void;
 }
 
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isOnline: true,
   pendingCount: 0,
+  setIdentity: () => {},
   clearIdentity: () => {},
 });
 
@@ -45,6 +47,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (interval.current) { clearInterval(interval.current); interval.current = null; }
   };
 
+  const beginSync = (userId: string) => {
+    // Sync in the background — never blocks navigation
+    migrateOrPull(userId)
+      .catch(() => {})
+      .finally(() => {
+        setPendingCount(getPendingCount());
+        startSync(userId);
+      });
+  };
+
   useEffect(() => {
     const goOnline  = () => { onlineRef.current = true;  setIsOnline(true);  };
     const goOffline = () => { onlineRef.current = false; setIsOnline(false); };
@@ -57,16 +69,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (storedUid) {
       setUid(storedUid);
       setName(storedName);
-      migrateOrPull(storedUid)
-        .catch(() => {})
-        .finally(() => {
-          setPendingCount(getPendingCount());
-          startSync(storedUid);
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
+      beginSync(storedUid);
     }
+
+    // Always unblock immediately — sync happens in background
+    setLoading(false);
 
     return () => {
       stopSync();
@@ -74,6 +81,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       window.removeEventListener('offline', goOffline);
     };
   }, []);
+
+  /** Called by the login page after the user enters their name + key. */
+  const setIdentity = (newUid: string, newName: string) => {
+    setUid(newUid);
+    setName(newName);
+    beginSync(newUid);
+  };
 
   const clearIdentity = () => {
     stopSync();
@@ -84,7 +98,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <AuthContext.Provider value={{ uid, name, loading, isOnline, pendingCount, clearIdentity }}>
+    <AuthContext.Provider value={{ uid, name, loading, isOnline, pendingCount, setIdentity, clearIdentity }}>
       {children}
     </AuthContext.Provider>
   );
