@@ -16,9 +16,20 @@ export default function AccountPage() {
   const [error, setError]       = useState('');
   const [copied, setCopied]     = useState(false);
 
-  const copyUid = () => {
+  const copyUid = async () => {
     if (!uid) return;
-    navigator.clipboard.writeText(uid);
+    try {
+      await navigator.clipboard.writeText(uid);
+    } catch {
+      // Fallback: select the text
+      const el = document.getElementById('uid-text');
+      if (el) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -51,15 +62,26 @@ export default function AccountPage() {
           <div className="w-12 h-12 rounded-full bg-[#D8F3DC] flex items-center justify-center flex-shrink-0">
             <span className="text-[#1B4332] font-bold text-lg">{name ? name.slice(0, 2).toUpperCase() : '?'}</span>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="font-bold text-[#1B4332]">{name || 'Unknown'}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <p className="text-xs text-gray-400 font-mono break-all">{uid}</p>
-              <button onClick={copyUid} className="flex-shrink-0 text-gray-300 hover:text-[#40916C] transition-colors">
-                {copied ? <Check size={13} className="text-[#40916C]" /> : <Copy size={13} />}
-              </button>
-            </div>
+            <p className="text-xs text-gray-400 mt-0.5">Your Cloud ID</p>
           </div>
+        </div>
+
+        {/* UID row — full width, selectable, with copy button */}
+        <div className="mt-3 bg-[#F4EFE6] rounded-xl px-3 py-2.5 flex items-center gap-2">
+          <p
+            id="uid-text"
+            className="flex-1 text-xs font-mono text-gray-600 break-all select-all"
+          >
+            {uid}
+          </p>
+          <button
+            onClick={copyUid}
+            className="flex-shrink-0 p-1.5 rounded-lg bg-white border border-[#D8F3DC] text-gray-400 hover:text-[#1B4332] transition-colors"
+          >
+            {copied ? <Check size={14} className="text-[#40916C]" /> : <Copy size={14} />}
+          </button>
         </div>
         <div className="mt-4 pt-4 border-t border-[#E8F4ED]">
           <SyncIndicator />
