@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { deleteUserData } from '@/lib/sync';
-import { KeyRound, Trash2, AlertTriangle } from 'lucide-react';
+import { KeyRound, Trash2, AlertTriangle, Copy, Check } from 'lucide-react';
 import SyncIndicator from '@/components/SyncIndicator';
 
 export default function AccountPage() {
@@ -14,6 +14,14 @@ export default function AccountPage() {
   const [text, setText]         = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [copied, setCopied]     = useState(false);
+
+  const copyUid = () => {
+    if (!uid) return;
+    navigator.clipboard.writeText(uid);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleDeleteData = async () => {
     if (!uid) return;
@@ -45,7 +53,12 @@ export default function AccountPage() {
           </div>
           <div className="min-w-0">
             <p className="font-bold text-[#1B4332]">{name || 'Unknown'}</p>
-            <p className="text-xs text-gray-400 mt-0.5 font-mono truncate">ID: {uid?.slice(0, 16)}…</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-xs text-gray-400 font-mono break-all">{uid}</p>
+              <button onClick={copyUid} className="flex-shrink-0 text-gray-300 hover:text-[#40916C] transition-colors">
+                {copied ? <Check size={13} className="text-[#40916C]" /> : <Copy size={13} />}
+              </button>
+            </div>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-[#E8F4ED]">
