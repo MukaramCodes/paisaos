@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import UpdateBanner from '@/components/UpdateBanner';
+import AuthProvider from '@/components/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'PaisaOS – Personal Finance for Pakistan',
@@ -30,8 +31,10 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="bg-cream text-ink antialiased">
-        {children}
-        <UpdateBanner />
+        <AuthProvider>
+          {children}
+          <UpdateBanner />
+        </AuthProvider>
       </body>
     </html>
   );

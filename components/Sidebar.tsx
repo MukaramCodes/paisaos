@@ -14,9 +14,11 @@ import {
   X,
   Pencil,
   Check,
+  LogOut,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
+import { useAuth } from '@/components/AuthProvider';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -30,6 +32,7 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userName, setUserName] = useState('');
   const [editingName, setEditingName] = useState(false);
@@ -93,7 +96,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Account Footer */}
-      <div className="px-4 py-4 border-t border-[#D8F3DC]">
+      <div className="px-4 py-4 border-t border-[#D8F3DC] space-y-2">
         {editingName ? (
           <div className="flex items-center gap-2">
             <input
@@ -116,20 +119,37 @@ export default function Sidebar() {
                   {userName.slice(0, 2).toUpperCase()}
                 </span>
               </div>
-              <p className="text-sm font-semibold text-[#1B4332] truncate">{userName}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[#1B4332] truncate">{userName}</p>
+                {user?.email && (
+                  <p className="text-xs text-[#40916C] truncate">{user.email}</p>
+                )}
+              </div>
             </div>
-            <button onClick={startEdit} className="p-1 text-gray-300 hover:text-[#40916C] transition-colors opacity-0 group-hover:opacity-100">
+            <button onClick={startEdit} className="p-1 text-gray-300 hover:text-[#40916C] transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0">
               <Pencil size={13} />
             </button>
           </div>
         ) : (
-          <button
-            onClick={startEdit}
-            className="w-full text-sm text-[#40916C] border border-dashed border-[#D8F3DC] rounded-xl py-2 hover:bg-[#D8F3DC]/40 transition-colors font-medium"
-          >
-            + Set your name
-          </button>
+          <div>
+            {user?.email && (
+              <p className="text-xs text-[#40916C] mb-2 truncate">{user.email}</p>
+            )}
+            <button
+              onClick={startEdit}
+              className="w-full text-sm text-[#40916C] border border-dashed border-[#D8F3DC] rounded-xl py-2 hover:bg-[#D8F3DC]/40 transition-colors font-medium"
+            >
+              + Set your name
+            </button>
+          </div>
         )}
+        <button
+          onClick={signOut}
+          className="w-full flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-red-500 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+        >
+          <LogOut size={13} />
+          Sign out
+        </button>
       </div>
     </>
   );
