@@ -15,10 +15,12 @@ import {
   Pencil,
   Check,
   LogOut,
+  UserCircle,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { useAuth } from '@/components/AuthProvider';
+import SyncIndicator from '@/components/SyncIndicator';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -28,6 +30,7 @@ const navItems = [
   { href: '/spending-autopsy', label: 'Spending Autopsy', icon: Stethoscope },
   { href: '/calculators', label: 'Calculators', icon: Calculator },
   { href: '/net-worth', label: 'Net Worth', icon: TrendingUp },
+  { href: '/account', label: 'Account', icon: UserCircle },
 ];
 
 export default function Sidebar() {
@@ -143,13 +146,16 @@ export default function Sidebar() {
             </button>
           </div>
         )}
-        <button
-          onClick={signOut}
-          className="w-full flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-red-500 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
-        >
-          <LogOut size={13} />
-          Sign out
-        </button>
+        <div className="flex items-center justify-between px-1">
+          <SyncIndicator />
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors py-1"
+          >
+            <LogOut size={13} />
+            Sign out
+          </button>
+        </div>
       </div>
     </>
   );
