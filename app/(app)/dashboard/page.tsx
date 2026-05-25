@@ -94,7 +94,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-extrabold text-[#1B4332]">
           {getGreeting()}{userName ? `, ${userName}` : ''} 👋
         </h1>
-        <p className="text-sm text-[#40916C] mt-1">Here&apos;s your financial pulse for {monthLabel}</p>
+        <p className="text-sm text-[#40916C] mt-1">Here&apos;s your financial pulse for {monthLabel} · v2.0 ✦</p>
       </div>
 
       {/* Metric Cards */}

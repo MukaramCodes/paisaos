@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import UpdateBanner from '@/components/UpdateBanner';
 
 export const metadata: Metadata = {
   title: 'PaisaOS – Personal Finance for Pakistan',
@@ -30,6 +31,7 @@ export default function RootLayout({
       </head>
       <body className="bg-cream text-ink antialiased">
         {children}
+        <UpdateBanner />
       </body>
     </html>
   );
