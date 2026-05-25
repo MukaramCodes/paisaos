@@ -4,91 +4,82 @@ import { useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Info } from 'lucide-react';
+import { Info, Plus, Trash2 } from 'lucide-react';
 
-const DEFAULT_INCOME = 0;
+interface FlowItem {
+  id: number;
+  name: string;
+  amount: number;
+}
 
-const flowCategories = [
+interface FlowCategory {
+  label: string;
+  description: string;
+  target: number;
+  items: FlowItem[];
+  color: string;
+}
+
+const defaultCategories: FlowCategory[] = [
   {
     label: 'Needs',
     description: 'Essentials you must pay',
     target: 50,
-    items: [
-      { name: 'Rent', amount: 25000 },
-      { name: 'Groceries', amount: 12000 },
-      { name: 'Utilities', amount: 8200 },
-      { name: 'Transport', amount: 6000 },
-      { name: 'Medical', amount: 3000 },
-    ],
+    items: [],
     color: '#1B4332',
-    lightColor: '#D8F3DC',
   },
   {
     label: 'Wants',
     description: 'Lifestyle & enjoyment',
     target: 30,
-    items: [
-      { name: 'Dining Out', amount: 8000 },
-      { name: 'Entertainment', amount: 5000 },
-      { name: 'Shopping', amount: 7400 },
-      { name: 'Subscriptions', amount: 3200 },
-      { name: 'Misc', amount: 2800 },
-    ],
+    items: [],
     color: '#40916C',
-    lightColor: '#D8F3DC',
   },
   {
     label: 'Savings & Investments',
     description: 'Building your future',
     target: 20,
-    items: [
-      { name: 'Emergency Fund', amount: 15000 },
-      { name: 'Car Fund', amount: 10000 },
-      { name: 'Stocks / Mutual Funds', amount: 5000 },
-      { name: 'Laptop Fund', amount: 3600 },
-    ],
+    items: [],
     color: '#74C69D',
-    lightColor: '#D8F3DC',
   },
-];
-
-const monthlyData = [
-  { month: 'Nov', needs: 58000, wants: 28000, savings: 22000 },
-  { month: 'Dec', needs: 72000, wants: 38000, savings: 15000 },
-  { month: 'Jan', needs: 55000, wants: 31000, savings: 28000 },
-  { month: 'Feb', needs: 57000, wants: 29000, savings: 30000 },
-  { month: 'Mar', needs: 56000, wants: 33000, savings: 27000 },
-  { month: 'Apr', needs: 61000, wants: 30000, savings: 24000 },
-  { month: 'May', needs: 54200, wants: 26400, savings: 33600 },
 ];
 
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 const pct = (n: number, income: number) => income > 0 ? Math.round((n / income) * 100) : 0;
 
 export default function MoneyFlowPage() {
-  const [income, setIncome] = useState(DEFAULT_INCOME);
-  const [inputVal, setInputVal] = useState(DEFAULT_INCOME.toString());
+  const [income, setIncome] = useState(0);
+  const [inputVal, setInputVal] = useState('');
+  const [categories, setCategories] = useState<FlowCategory[]>(defaultCategories);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('paisaos_income');
-    if (saved) {
-      const n = Number(saved);
+    const savedIncome = localStorage.getItem('paisaos_income');
+    if (savedIncome) {
+      const n = Number(savedIncome);
       setIncome(n);
       setInputVal(n.toString());
+    }
+    const savedFlow = localStorage.getItem('paisaos_flow');
+    if (savedFlow) {
+      setCategories(JSON.parse(savedFlow));
     }
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (mounted) localStorage.setItem('paisaos_income', income.toString());
-  }, [income, mounted]);
+    if (mounted) {
+      localStorage.setItem('paisaos_income', income.toString());
+      localStorage.setItem('paisaos_flow', JSON.stringify(categories));
+    }
+  }, [income, categories, mounted]);
 
   const handleIncomeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^0-9]/g, '');
@@ -97,14 +88,50 @@ export default function MoneyFlowPage() {
     setIncome(stripped ? parseInt(stripped, 10) : 0);
   };
 
-  const totalSpent = flowCategories
-    .flatMap((c) => c.items)
-    .reduce((s, i) => s + i.amount, 0);
+  const addItem = (catIndex: number) => {
+    setCategories((cats) =>
+      cats.map((c, i) =>
+        i === catIndex
+          ? { ...c, items: [...c.items, { id: Date.now(), name: 'New Item', amount: 0 }] }
+          : c
+      )
+    );
+  };
+
+  const updateItem = (
+    catIndex: number,
+    itemId: number,
+    field: 'name' | 'amount',
+    value: string | number
+  ) => {
+    setCategories((cats) =>
+      cats.map((c, i) =>
+        i === catIndex
+          ? { ...c, items: c.items.map((item) => (item.id === itemId ? { ...item, [field]: value } : item)) }
+          : c
+      )
+    );
+  };
+
+  const deleteItem = (catIndex: number, itemId: number) => {
+    setCategories((cats) =>
+      cats.map((c, i) =>
+        i === catIndex ? { ...c, items: c.items.filter((item) => item.id !== itemId) } : c
+      )
+    );
+  };
+
+  const totalSpent = categories.flatMap((c) => c.items).reduce((s, i) => s + i.amount, 0);
   const unallocated = income - totalSpent;
+
+  const chartData = categories.map((c) => ({
+    name: c.label === 'Savings & Investments' ? 'Savings' : c.label,
+    amount: c.items.reduce((s, i) => s + i.amount, 0),
+    color: c.color,
+  }));
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold text-[#1B4332]">Money Flow</h1>
         <p className="text-sm text-[#40916C] mt-1">See exactly where every rupee goes this month</p>
@@ -144,9 +171,9 @@ export default function MoneyFlowPage() {
         </div>
       </div>
 
-      {/* Flow Breakdown */}
+      {/* Flow Breakdown — fully editable */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {flowCategories.map((cat) => {
+        {categories.map((cat, catIndex) => {
           const catTotal = cat.items.reduce((s, i) => s + i.amount, 0);
           const catPct = pct(catTotal, income);
           const targetDiff = catPct - cat.target;
@@ -165,11 +192,11 @@ export default function MoneyFlowPage() {
                 </div>
               </div>
 
-              <div className="mb-1">
+              <div className="mb-4">
                 <div className="flex justify-between text-xs text-gray-400 mb-1">
                   <span>{fmt(catTotal)}</span>
                   <span className={targetDiff > 0 ? 'text-red-500' : 'text-[#2D6A4F]'}>
-                    Target: {cat.target}% {targetDiff !== 0 && `(${targetDiff > 0 ? '+' : ''}${targetDiff}%)`}
+                    Target: {cat.target}%{targetDiff !== 0 ? ` (${targetDiff > 0 ? '+' : ''}${targetDiff}%)` : ''}
                   </span>
                 </div>
                 <div className="h-2.5 bg-[#F4EFE6] rounded-full overflow-hidden">
@@ -180,17 +207,41 @@ export default function MoneyFlowPage() {
                 </div>
               </div>
 
-              <div className="mt-4 space-y-2">
+              <div className="space-y-2">
+                {cat.items.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-2">No items yet — add one below</p>
+                )}
                 {cat.items.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                      <span className="text-sm text-gray-600">{item.name}</span>
-                    </div>
-                    <span className="text-sm font-medium text-[#1C1C1C] tabular-nums">{fmt(item.amount)}</span>
+                  <div key={item.id} className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                    <input
+                      value={item.name}
+                      onChange={(e) => updateItem(catIndex, item.id, 'name', e.target.value)}
+                      className="flex-1 text-sm text-gray-600 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-[#40916C] focus:outline-none px-1 min-w-0"
+                    />
+                    <input
+                      type="number"
+                      value={item.amount || ''}
+                      onChange={(e) => updateItem(catIndex, item.id, 'amount', Number(e.target.value) || 0)}
+                      placeholder="0"
+                      className="w-24 text-sm font-medium text-right bg-[#F4EFE6] border border-transparent hover:border-gray-200 focus:border-[#40916C] focus:outline-none rounded-lg px-2 py-1 tabular-nums"
+                    />
+                    <button
+                      onClick={() => deleteItem(catIndex, item.id)}
+                      className="text-gray-300 hover:text-red-400 flex-shrink-0 transition-colors"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                 ))}
               </div>
+
+              <button
+                onClick={() => addItem(catIndex)}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-medium text-[#40916C] bg-[#F4EFE6] hover:bg-[#D8F3DC] rounded-lg py-2 transition-colors"
+              >
+                <Plus size={12} /> Add Item
+              </button>
             </div>
           );
         })}
@@ -203,7 +254,7 @@ export default function MoneyFlowPage() {
           <Info size={14} className="text-gray-400" />
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
-          {flowCategories.map((cat) => {
+          {categories.map((cat) => {
             const catTotal = cat.items.reduce((s, i) => s + i.amount, 0);
             const actual = pct(catTotal, income);
             const ok = cat.label === 'Savings & Investments' ? actual >= cat.target : actual <= cat.target;
@@ -228,20 +279,28 @@ export default function MoneyFlowPage() {
         </div>
       </div>
 
-      {/* Monthly Trend */}
+      {/* Chart from real entered data */}
       <div className="bg-white rounded-2xl p-6 shadow-card">
-        <h3 className="font-bold text-[#1B4332] mb-4">6-Month Spending Trend</h3>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={monthlyData} barSize={20}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-            <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-            <Tooltip formatter={(v: number, name: string) => [fmt(v), name.charAt(0).toUpperCase() + name.slice(1)]} />
-            <Bar dataKey="needs" stackId="a" fill="#1B4332" radius={[0, 0, 4, 4]} name="Needs" />
-            <Bar dataKey="wants" stackId="a" fill="#40916C" name="Wants" />
-            <Bar dataKey="savings" stackId="a" fill="#74C69D" radius={[4, 4, 0, 0]} name="Savings" />
-          </BarChart>
-        </ResponsiveContainer>
+        <h3 className="font-bold text-[#1B4332] mb-4">This Month&apos;s Breakdown</h3>
+        {totalSpent > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} barSize={52}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: number) => [fmt(v), 'Amount']} />
+              <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[200px] flex items-center justify-center bg-[#F4EFE6] rounded-xl">
+            <p className="text-sm text-gray-400">Add items above to see your breakdown chart</p>
+          </div>
+        )}
       </div>
     </div>
   );
