@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isOnline: boolean;
   pendingCount: number;
+  syncError: string | null;
   setIdentity: (uid: string, name: string) => void;
   clearIdentity: () => void;
 }
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isOnline: true,
   pendingCount: 0,
+  syncError: null,
   setIdentity: () => {},
   clearIdentity: () => {},
 });
@@ -31,6 +33,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading]           = useState(true);
   const [isOnline, setIsOnline]         = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
+  const [syncError, setSyncError]       = useState<string | null>(null);
   const interval  = useRef<ReturnType<typeof setInterval> | null>(null);
   const onlineRef = useRef(true);
 
@@ -38,7 +41,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (interval.current) clearInterval(interval.current);
     interval.current = setInterval(async () => {
       if (!onlineRef.current) return;
-      await syncPendingToCloud(userId).catch(() => {});
+      try {
+        await syncPendingToCloud(userId);
+        setSyncError(null);
+      } catch (e: any) {
+        setSyncError(e.message);
+      }
       setPendingCount(getPendingCount());
     }, 15000);
   };
@@ -48,9 +56,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   const beginSync = (userId: string) => {
-    // Sync in the background — never blocks navigation
     migrateOrPull(userId)
-      .catch(() => {})
+      .then(() => setSyncError(null))
+      .catch((e: any) => setSyncError(e.message))
       .finally(() => {
         setPendingCount(getPendingCount());
         startSync(userId);
@@ -72,7 +80,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       beginSync(storedUid);
     }
 
-    // Always unblock immediately — sync happens in background
     setLoading(false);
 
     return () => {
@@ -82,7 +89,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  /** Called by the login page after the user enters their name + key. */
   const setIdentity = (newUid: string, newName: string) => {
     setUid(newUid);
     setName(newName);
@@ -95,10 +101,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     localStorage.removeItem('paisaos_username');
     setUid(null);
     setName('');
+    setSyncError(null);
   };
 
   return (
-    <AuthContext.Provider value={{ uid, name, loading, isOnline, pendingCount, setIdentity, clearIdentity }}>
+    <AuthContext.Provider value={{ uid, name, loading, isOnline, pendingCount, syncError, setIdentity, clearIdentity }}>
       {children}
     </AuthContext.Provider>
   );

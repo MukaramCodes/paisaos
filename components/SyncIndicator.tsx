@@ -1,16 +1,25 @@
 'use client';
 
 import { useAuth } from '@/components/AuthProvider';
-import { Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 
 export default function SyncIndicator() {
-  const { isOnline, pendingCount } = useAuth();
+  const { isOnline, pendingCount, syncError } = useAuth();
 
   if (!isOnline) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-amber-500 font-medium">
         <CloudOff size={13} />
         <span>Offline</span>
+      </div>
+    );
+  }
+
+  if (syncError) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-red-400 font-medium" title={syncError}>
+        <AlertCircle size={13} />
+        <span>Sync error</span>
       </div>
     );
   }
