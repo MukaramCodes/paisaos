@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/AuthProvider';
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
 
 interface Goal {
@@ -41,6 +42,7 @@ const isOnTrack = (goal: Goal) => {
 };
 
 export default function GoalsPage() {
+  const { dataVersion } = useAuth();
   const [goals, setGoals] = useState<Goal[]>(initGoals);
   const [mounted, setMounted] = useState(false);
 
@@ -48,7 +50,7 @@ export default function GoalsPage() {
     const saved = localStorage.getItem('paisaos_goals');
     if (saved) setGoals(JSON.parse(saved));
     setMounted(true);
-  }, []);
+  }, [dataVersion]);
 
   useEffect(() => {
     if (mounted) localStorage.setItem('paisaos_goals', JSON.stringify(goals));

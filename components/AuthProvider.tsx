@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isOnline: boolean;
   syncError: string | null;
+  dataVersion: number;
   setIdentity: (uid: string, name: string) => void;
   clearIdentity: () => void;
 }
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isOnline: true,
   syncError: null,
+  dataVersion: 0,
   setIdentity: () => {},
   clearIdentity: () => {},
 });
@@ -26,15 +28,18 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [uid, setUid]             = useState<string | null>(null);
-  const [name, setName]           = useState('');
-  const [loading, setLoading]     = useState(true);
-  const [isOnline, setIsOnline]   = useState(true);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const [uid, setUid]               = useState<string | null>(null);
+  const [name, setName]             = useState('');
+  const [loading, setLoading]       = useState(true);
+  const [isOnline, setIsOnline]     = useState(true);
+  const [syncError, setSyncError]   = useState<string | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
 
   const interval    = useRef<ReturnType<typeof setInterval> | null>(null);
   const onlineRef   = useRef(true);
   const snapshotRef = useRef<Record<string, string>>({});
+
+  const bumpVersion = () => setDataVersion(v => v + 1);
 
   const stopSync = () => {
     if (interval.current) { clearInterval(interval.current); interval.current = null; }
@@ -42,14 +47,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const startSync = (userId: string) => {
     stopSync();
-    // Take initial snapshot so first interval knows the baseline
     snapshotRef.current = readSnapshot();
 
     interval.current = setInterval(async () => {
       if (!onlineRef.current) return;
       try {
-        // Push any keys that changed since last tick, then pull latest
-        snapshotRef.current = await periodicSync(userId, snapshotRef.current);
+        const prevSnap = snapshotRef.current;
+        snapshotRef.current = await periodicSync(userId, prevSnap);
+
+        // If cloud had newer data, some keys in localStorage changed — tell pages
+        const cloudUpdated = Object.keys(snapshotRef.current).some(
+          k => snapshotRef.current[k] !== prevSnap[k]
+        );
+        if (cloudUpdated) bumpVersion();
+
         setSyncError(null);
       } catch (e: any) {
         setSyncError(e.message);
@@ -59,10 +70,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const beginSync = (userId: string) => {
     migrateOrPull(userId)
-      .then(() => {
+      .then((pulled) => {
         setSyncError(null);
-        // Refresh snapshot after initial pull so interval starts clean
         snapshotRef.current = readSnapshot();
+        if (pulled > 0) bumpVersion(); // pages re-read localStorage
       })
       .catch((e: any) => setSyncError(e.message))
       .finally(() => startSync(userId));
@@ -108,7 +119,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <AuthContext.Provider value={{ uid, name, loading, isOnline, syncError, setIdentity, clearIdentity }}>
+    <AuthContext.Provider value={{ uid, name, loading, isOnline, syncError, dataVersion, setIdentity, clearIdentity }}>
       {children}
     </AuthContext.Provider>
   );

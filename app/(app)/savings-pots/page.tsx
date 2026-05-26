@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/AuthProvider';
 import { Plus, Target, Trash2, TrendingUp } from 'lucide-react';
 
 interface Pot {
@@ -18,6 +19,7 @@ const initPots: Pot[] = [];
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 
 export default function SavingsPotsPage() {
+  const { dataVersion } = useAuth();
   const [pots, setPots] = useState<Pot[]>(initPots);
   const [mounted, setMounted] = useState(false);
 
@@ -25,7 +27,7 @@ export default function SavingsPotsPage() {
     const saved = localStorage.getItem('paisaos_pots');
     if (saved) setPots(JSON.parse(saved));
     setMounted(true);
-  }, []);
+  }, [dataVersion]);
 
   useEffect(() => {
     if (mounted) localStorage.setItem('paisaos_pots', JSON.stringify(pots));

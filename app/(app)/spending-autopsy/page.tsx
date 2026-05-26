@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/AuthProvider';
 import {
   PieChart,
   Pie,
@@ -40,6 +41,7 @@ const COLORS = ['#1B4332','#2D6A4F','#40916C','#52B788','#74C69D','#d97706','#f5
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 
 export default function SpendingAutopsyPage() {
+  const { dataVersion } = useAuth();
   const [categories, setCategories] = useState<Category[]>(initCategories);
   const [mounted, setMounted] = useState(false);
   const [selectedType, setSelectedType] = useState<'All' | 'Needs' | 'Wants'>('All');
@@ -56,7 +58,7 @@ export default function SpendingAutopsyPage() {
     const saved = localStorage.getItem('paisaos_spending');
     if (saved) setCategories(JSON.parse(saved));
     setMounted(true);
-  }, []);
+  }, [dataVersion]);
 
   useEffect(() => {
     if (mounted) localStorage.setItem('paisaos_spending', JSON.stringify(categories));

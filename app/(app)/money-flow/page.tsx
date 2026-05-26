@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/AuthProvider';
 import {
   BarChart,
   Bar,
@@ -55,6 +56,7 @@ const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 const pct = (n: number, income: number) => income > 0 ? Math.round((n / income) * 100) : 0;
 
 export default function MoneyFlowPage() {
+  const { dataVersion } = useAuth();
   const [income, setIncome] = useState(0);
   const [inputVal, setInputVal] = useState('');
   const [categories, setCategories] = useState<FlowCategory[]>(defaultCategories);
@@ -72,7 +74,7 @@ export default function MoneyFlowPage() {
       setCategories(JSON.parse(savedFlow));
     }
     setMounted(true);
-  }, []);
+  }, [dataVersion]);
 
   useEffect(() => {
     if (mounted) {

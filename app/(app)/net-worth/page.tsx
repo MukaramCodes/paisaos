@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/AuthProvider';
 import {
   AreaChart,
   Area,
@@ -48,6 +49,7 @@ const historyData = [
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 
 export default function NetWorthPage() {
+  const { dataVersion } = useAuth();
   const [assets, setAssets] = useState<Asset[]>(initAssets);
   const [liabilities, setLiabilities] = useState<Liability[]>(initLiabilities);
   const [mounted, setMounted] = useState(false);
@@ -58,7 +60,7 @@ export default function NetWorthPage() {
     if (a) setAssets(JSON.parse(a));
     if (l) setLiabilities(JSON.parse(l));
     setMounted(true);
-  }, []);
+  }, [dataVersion]);
 
   useEffect(() => {
     if (mounted) localStorage.setItem('paisaos_assets', JSON.stringify(assets));

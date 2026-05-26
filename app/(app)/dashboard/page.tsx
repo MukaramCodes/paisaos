@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/AuthProvider';
 import {
   PieChart,
   Pie,
@@ -30,6 +31,7 @@ function getGreeting() {
 }
 
 export default function DashboardPage() {
+  const { dataVersion } = useAuth();
   const [userName, setUserName] = useState('');
   const [income, setIncome] = useState(0);
   const [totalAssets, setTotalAssets] = useState(0);
@@ -63,7 +65,7 @@ export default function DashboardPage() {
 
     const savedGoals = localStorage.getItem('paisaos_goals');
     if (savedGoals) setGoals(JSON.parse(savedGoals));
-  }, []);
+  }, [dataVersion]);
 
   const netWorth = totalAssets - totalLiabilities;
   const totalSpent = spendCategories.reduce((s, c) => s + (c.amount || 0), 0);

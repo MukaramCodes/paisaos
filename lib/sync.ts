@@ -116,10 +116,9 @@ export async function periodicSync(
 
 // ─── First-login migration ────────────────────────────────────────────────────
 
-export async function migrateOrPull(userId: string): Promise<void> {
+export async function migrateOrPull(userId: string): Promise<number> {
   if (localStorage.getItem(MIGRATION_KEY) === 'done') {
-    await pullFromCloud(userId);
-    return;
+    return await pullFromCloud(userId);
   }
 
   const { data: existing, error } = await supabase
@@ -130,15 +129,15 @@ export async function migrateOrPull(userId: string): Promise<void> {
 
   if (error) throw new Error(error.message);
 
+  let pulled = 0;
   if (existing && existing.length > 0) {
-    // Returning user on new device — pull their cloud data
-    await pullFromCloud(userId, true);
+    pulled = await pullFromCloud(userId, true);
   } else {
-    // Brand-new account — push whatever's in localStorage
     await pushRows(userId, SYNC_KEYS);
   }
 
   localStorage.setItem(MIGRATION_KEY, 'done');
+  return pulled;
 }
 
 // ─── Force full sync (manual button) ─────────────────────────────────────────
