@@ -1,14 +1,13 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { migrateOrPull, syncPendingToCloud, getPendingCount } from '@/lib/sync';
+import { migrateOrPull, periodicSync, readSnapshot } from '@/lib/sync';
 
 interface AuthContextType {
   uid: string | null;
   name: string;
   loading: boolean;
   isOnline: boolean;
-  pendingCount: number;
   syncError: string | null;
   setIdentity: (uid: string, name: string) => void;
   clearIdentity: () => void;
@@ -19,7 +18,6 @@ const AuthContext = createContext<AuthContextType>({
   name: '',
   loading: true,
   isOnline: true,
-  pendingCount: 0,
   syncError: null,
   setIdentity: () => {},
   clearIdentity: () => {},
@@ -28,41 +26,46 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [uid, setUid]                   = useState<string | null>(null);
-  const [name, setName]                 = useState('');
-  const [loading, setLoading]           = useState(true);
-  const [isOnline, setIsOnline]         = useState(true);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [syncError, setSyncError]       = useState<string | null>(null);
-  const interval  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const onlineRef = useRef(true);
+  const [uid, setUid]             = useState<string | null>(null);
+  const [name, setName]           = useState('');
+  const [loading, setLoading]     = useState(true);
+  const [isOnline, setIsOnline]   = useState(true);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
-  const startSync = (userId: string) => {
-    if (interval.current) clearInterval(interval.current);
-    interval.current = setInterval(async () => {
-      if (!onlineRef.current) return;
-      try {
-        await syncPendingToCloud(userId);
-        setSyncError(null);
-      } catch (e: any) {
-        setSyncError(e.message);
-      }
-      setPendingCount(getPendingCount());
-    }, 15000);
-  };
+  const interval    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onlineRef   = useRef(true);
+  const snapshotRef = useRef<Record<string, string>>({});
 
   const stopSync = () => {
     if (interval.current) { clearInterval(interval.current); interval.current = null; }
   };
 
+  const startSync = (userId: string) => {
+    stopSync();
+    // Take initial snapshot so first interval knows the baseline
+    snapshotRef.current = readSnapshot();
+
+    interval.current = setInterval(async () => {
+      if (!onlineRef.current) return;
+      try {
+        // Push any keys that changed since last tick, then pull latest
+        snapshotRef.current = await periodicSync(userId, snapshotRef.current);
+        setSyncError(null);
+      } catch (e: any) {
+        setSyncError(e.message);
+      }
+    }, 15000);
+  };
+
   const beginSync = (userId: string) => {
     migrateOrPull(userId)
-      .then(() => setSyncError(null))
+      .then(() => {
+        setSyncError(null);
+        // Refresh snapshot after initial pull so interval starts clean
+        snapshotRef.current = readSnapshot();
+      })
       .catch((e: any) => setSyncError(e.message))
-      .finally(() => {
-        setPendingCount(getPendingCount());
-        startSync(userId);
-      });
+      .finally(() => startSync(userId));
   };
 
   useEffect(() => {
@@ -105,7 +108,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <AuthContext.Provider value={{ uid, name, loading, isOnline, pendingCount, syncError, setIdentity, clearIdentity }}>
+    <AuthContext.Provider value={{ uid, name, loading, isOnline, syncError, setIdentity, clearIdentity }}>
       {children}
     </AuthContext.Provider>
   );

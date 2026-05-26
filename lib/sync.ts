@@ -14,118 +14,110 @@ export const SYNC_KEYS = [
   'paisaos_visited',
 ];
 
-const PENDING_KEY    = 'paisaos_pending_sync';
 const TIMESTAMPS_KEY = 'paisaos_local_ts';
 const MIGRATION_KEY  = 'paisaos_migrated_v1';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface PendingItem {
-  key: string;
-  raw: string;
-  ts:  string;
-}
-
-// ─── Local timestamp helpers ──────────────────────────────────────────────────
+// ─── Timestamp helpers ────────────────────────────────────────────────────────
 
 function getTimestamps(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(TIMESTAMPS_KEY) || '{}'); }
   catch { return {}; }
 }
 
-function setTimestamp(key: string, ts: string) {
-  const map = getTimestamps();
-  map[key] = ts;
-  localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(map));
+// ─── Read snapshot of all sync keys ──────────────────────────────────────────
+
+export function readSnapshot(): Record<string, string> {
+  const snap: Record<string, string> = {};
+  for (const k of SYNC_KEYS) snap[k] = localStorage.getItem(k) ?? '';
+  return snap;
 }
 
-// ─── Pending queue helpers ────────────────────────────────────────────────────
+// ─── Push a specific set of key/value pairs with a fresh timestamp ────────────
 
-function getPendingQueue(): PendingItem[] {
-  try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); }
-  catch { return []; }
-}
+async function pushRows(userId: string, keys: string[]): Promise<void> {
+  const now  = new Date().toISOString();
+  const rows: unknown[] = [];
 
-function enqueuePending(key: string, raw: string, ts: string) {
-  const queue = getPendingQueue().filter(i => i.key !== key);
-  queue.push({ key, raw, ts });
-  localStorage.setItem(PENDING_KEY, JSON.stringify(queue));
-}
-
-function clearPendingKeys(keys: string[]) {
-  const set = new Set(keys);
-  const remaining = getPendingQueue().filter(i => !set.has(i.key));
-  localStorage.setItem(PENDING_KEY, JSON.stringify(remaining));
-}
-
-export function getPendingCount(): number {
-  return getPendingQueue().length;
-}
-
-// ─── Write-through save ───────────────────────────────────────────────────────
-
-export function saveLocal(key: string, value: unknown) {
-  const raw = typeof value === 'string' ? value : JSON.stringify(value);
-  const ts  = new Date().toISOString();
-  localStorage.setItem(key, raw);
-  setTimestamp(key, ts);
-  enqueuePending(key, raw, ts);
-}
-
-// ─── Push pending queue to cloud — throws on error ───────────────────────────
-
-export async function syncPendingToCloud(userId: string): Promise<void> {
-  const queue = getPendingQueue();
-  if (!queue.length) return;
-
-  const rows = queue.map(({ key, raw, ts }) => {
+  for (const key of keys) {
+    const raw = localStorage.getItem(key);
+    if (raw === null || raw === '') continue;
     let value: unknown;
     try { value = JSON.parse(raw); }
     catch { value = { _str: raw }; }
-    return { user_id: userId, key, value, updated_at: ts };
-  });
+    rows.push({ user_id: userId, key, value, updated_at: now });
+  }
+
+  if (!rows.length) return;
 
   const { error } = await supabase
     .from('user_data')
     .upsert(rows, { onConflict: 'user_id,key' });
 
   if (error) throw new Error(error.message);
-  clearPendingKeys(queue.map(i => i.key));
+
+  // Update local timestamps so next interval doesn't re-push unchanged keys
+  const ts = getTimestamps();
+  for (const key of keys) { if (localStorage.getItem(key)) ts[key] = now; }
+  localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(ts));
 }
 
-// ─── Pull from cloud (timestamp-based conflict resolution) ───────────────────
+// ─── Pull from cloud ──────────────────────────────────────────────────────────
 
-export async function pullFromCloud(userId: string): Promise<void> {
+export async function pullFromCloud(userId: string, force = false): Promise<number> {
   const { data, error } = await supabase
     .from('user_data')
     .select('key, value, updated_at')
     .eq('user_id', userId);
 
   if (error) throw new Error(error.message);
-  if (!data) return;
+  if (!data) return 0;
 
   const localTs = getTimestamps();
+  let count = 0;
 
   for (const row of data) {
     const cloudTs = row.updated_at as string;
     const myTs    = localTs[row.key];
-    if (!myTs || cloudTs > myTs) {
+
+    if (force || !myTs || cloudTs > myTs) {
       const val = row.value?._str !== undefined
         ? row.value._str
         : JSON.stringify(row.value);
       localStorage.setItem(row.key, val);
       localTs[row.key] = cloudTs;
+      count++;
     }
   }
 
   localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(localTs));
+  return count;
 }
 
-// ─── Migration ────────────────────────────────────────────────────────────────
+// ─── Periodic sync: compare snapshot, push changed keys, pull ─────────────────
+
+export async function periodicSync(
+  userId: string,
+  lastSnapshot: Record<string, string>
+): Promise<Record<string, string>> {
+  const current = readSnapshot();
+
+  // Find keys whose value changed since last snapshot
+  const changed = SYNC_KEYS.filter(k => current[k] !== lastSnapshot[k] && current[k] !== '');
+
+  if (changed.length > 0) {
+    await pushRows(userId, changed);
+  }
+
+  // Always pull to pick up changes from other devices
+  await pullFromCloud(userId);
+
+  return current; // caller stores this as new snapshot
+}
+
+// ─── First-login migration ────────────────────────────────────────────────────
 
 export async function migrateOrPull(userId: string): Promise<void> {
   if (localStorage.getItem(MIGRATION_KEY) === 'done') {
-    await syncPendingToCloud(userId);
     await pullFromCloud(userId);
     return;
   }
@@ -139,68 +131,28 @@ export async function migrateOrPull(userId: string): Promise<void> {
   if (error) throw new Error(error.message);
 
   if (existing && existing.length > 0) {
-    await pullFromCloud(userId);
+    // Returning user on new device — pull their cloud data
+    await pullFromCloud(userId, true);
   } else {
-    await pushAllToCloud(userId);
+    // Brand-new account — push whatever's in localStorage
+    await pushRows(userId, SYNC_KEYS);
   }
 
   localStorage.setItem(MIGRATION_KEY, 'done');
 }
 
-// ─── Force full sync (bypasses migration flag) ────────────────────────────────
+// ─── Force full sync (manual button) ─────────────────────────────────────────
 
 export async function forceSyncAll(userId: string): Promise<{ pushed: number; pulled: number }> {
-  // Push everything in localStorage to cloud
-  await pushAllToCloud(userId);
+  // Push ALL keys with a fresh NOW timestamp (guarantees other devices see it as new)
+  await pushRows(userId, SYNC_KEYS);
+  const pushed = SYNC_KEYS.filter(k => localStorage.getItem(k) !== null).length;
 
-  // Pull everything from cloud back
-  const { data, error } = await supabase
-    .from('user_data')
-    .select('key, value, updated_at')
-    .eq('user_id', userId);
+  // Force-pull everything (overwrite local, no timestamp check)
+  const pulled = await pullFromCloud(userId, true);
 
-  if (error) throw new Error(error.message);
-
-  const pulled = data?.length ?? 0;
-  const localTs = getTimestamps();
-
-  for (const row of (data ?? [])) {
-    const val = row.value?._str !== undefined
-      ? row.value._str
-      : JSON.stringify(row.value);
-    localStorage.setItem(row.key, val);
-    localTs[row.key] = row.updated_at as string;
-  }
-
-  localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(localTs));
   localStorage.setItem(MIGRATION_KEY, 'done');
-
-  return { pushed: SYNC_KEYS.filter(k => localStorage.getItem(k) !== null).length, pulled };
-}
-
-// ─── Push all localStorage keys to cloud ─────────────────────────────────────
-
-export async function pushAllToCloud(userId: string): Promise<void> {
-  const localTs = getTimestamps();
-  const now     = new Date().toISOString();
-  const rows: unknown[] = [];
-
-  for (const key of SYNC_KEYS) {
-    const raw = localStorage.getItem(key);
-    if (raw === null) continue;
-    let value: unknown;
-    try { value = JSON.parse(raw); }
-    catch { value = { _str: raw }; }
-    rows.push({ user_id: userId, key, value, updated_at: localTs[key] || now });
-  }
-
-  if (!rows.length) return;
-
-  const { error } = await supabase
-    .from('user_data')
-    .upsert(rows, { onConflict: 'user_id,key' });
-
-  if (error) throw new Error(error.message);
+  return { pushed, pulled };
 }
 
 // ─── Delete data ──────────────────────────────────────────────────────────────
@@ -208,12 +160,13 @@ export async function pushAllToCloud(userId: string): Promise<void> {
 export async function deleteUserData(userId: string): Promise<void> {
   const { error } = await supabase.from('user_data').delete().eq('user_id', userId);
   if (error) throw new Error(error.message);
-  _wipeLocalStorage();
+  SYNC_KEYS.forEach(k => localStorage.removeItem(k));
+  localStorage.removeItem(MIGRATION_KEY);
+  localStorage.removeItem(TIMESTAMPS_KEY);
 }
 
-function _wipeLocalStorage() {
-  [...SYNC_KEYS, PENDING_KEY, MIGRATION_KEY, TIMESTAMPS_KEY]
-    .forEach(k => localStorage.removeItem(k));
-}
+// ─── Backward-compat ──────────────────────────────────────────────────────────
 
-export { syncPendingToCloud as pushToCloud };
+export function getPendingCount() { return 0; }
+export async function syncPendingToCloud(_userId: string) { /* replaced by periodicSync */ }
+export { pushRows as pushToCloud };
