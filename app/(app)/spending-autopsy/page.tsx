@@ -3,15 +3,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import {
-  getTransactions, deleteTransaction, calcWallet, thisMonthTxs,
+  getTransactions, addTransaction, deleteTransaction, calcWallet, thisMonthTxs,
   spendByCategory, dailyAverage, fmt, Transaction,
 } from '@/lib/transactions';
 import {
   PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
 } from 'recharts';
-import { AlertTriangle, RefreshCw, ExternalLink, Trash2 } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ExternalLink, Trash2, Upload } from 'lucide-react';
 import Link from 'next/link';
+
+interface OldCategory {
+  id: number;
+  name: string;
+  amount: number;
+  type: 'Needs' | 'Wants';
+}
 
 const COLORS = [
   '#1B4332','#2D6A4F','#40916C','#52B788','#74C69D',
@@ -40,9 +47,11 @@ function buildWeekly(txs: Transaction[]) {
 
 export default function SpendingAutopsyPage() {
   const { uid, dataVersion } = useAuth();
-  const [txs, setTxs]       = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]        = useState<Tab>('expense');
+  const [txs, setTxs]             = useState<Transaction[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [tab, setTab]             = useState<Tab>('expense');
+  const [oldCats, setOldCats]     = useState<OldCategory[]>([]);
+  const [migrating, setMigrating] = useState(false);
 
   const load = useCallback(async () => {
     if (!uid) return;
@@ -52,6 +61,37 @@ export default function SpendingAutopsyPage() {
   }, [uid]);
 
   useEffect(() => { load(); }, [load, dataVersion]);
+
+  // Detect old localStorage spending entries
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('paisaos_spending');
+      if (raw) setOldCats(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  const importOldSpending = async () => {
+    if (!uid || !oldCats.length) return;
+    setMigrating(true);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    try {
+      const added: Transaction[] = [];
+      for (const cat of oldCats) {
+        const tx = await addTransaction(uid, {
+          type: 'expense',
+          amount: cat.amount,
+          category: cat.name,
+          note: cat.type,
+          date: todayStr,
+        });
+        added.push(tx);
+      }
+      setTxs(prev => [...added, ...prev]);
+      localStorage.removeItem('paisaos_spending');
+      setOldCats([]);
+    } catch {}
+    finally { setMigrating(false); }
+  };
 
   const handleDelete = async (id: string) => {
     setTxs(prev => prev.filter(t => t.id !== id));
@@ -102,6 +142,28 @@ export default function SpendingAutopsyPage() {
           </Link>
         </div>
       </div>
+
+      {/* Migration banner for old localStorage spending entries */}
+      {oldCats.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+          <Upload size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">
+              You have {oldCats.length} previous spending {oldCats.length === 1 ? 'entry' : 'entries'} to import
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              {oldCats.map(c => c.name).join(', ')}
+            </p>
+          </div>
+          <button
+            onClick={importOldSpending}
+            disabled={migrating}
+            className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            {migrating ? 'Importing…' : 'Import as Expenses'}
+          </button>
+        </div>
+      )}
 
       {/* Empty state */}
       {empty && (
