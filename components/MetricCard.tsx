@@ -61,18 +61,18 @@ export default function MetricCard({
   return (
     <div
       className={clsx(
-        'bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-shadow duration-200',
+        'bg-white rounded-2xl p-3 sm:p-5 shadow-card hover:shadow-card-hover transition-shadow duration-200',
         className
       )}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-500 truncate">{title}</p>
-          <p className="mt-1 text-2xl font-bold text-[#1C1C1C] pkr-amount leading-tight">
+          <p className="text-[11px] sm:text-sm font-medium text-gray-500 truncate">{title}</p>
+          <p className="mt-1 text-lg sm:text-2xl font-bold text-[#1C1C1C] pkr-amount leading-tight truncate">
             {value}
           </p>
           {subtitle && (
-            <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
+            <p className="mt-0.5 text-[10px] sm:text-xs text-gray-400 truncate">{subtitle}</p>
           )}
           {trend && (
             <span
@@ -86,8 +86,8 @@ export default function MetricCard({
           )}
         </div>
         {Icon && (
-          <div className={clsx('p-2.5 rounded-xl ml-3 flex-shrink-0', colors.bg)}>
-            <Icon size={20} className={colors.icon} />
+          <div className={clsx('p-2 sm:p-2.5 rounded-xl ml-2 sm:ml-3 flex-shrink-0', colors.bg)}>
+            <Icon size={16} className={colors.icon} />
           </div>
         )}
       </div>

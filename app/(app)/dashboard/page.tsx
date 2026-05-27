@@ -102,13 +102,48 @@ export default function DashboardPage() {
   const recentTxs = transactions.slice(0, 5);
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold text-[#1B4332]">
           {getGreeting()}{userName ? `, ${userName}` : ''} 👋
         </h1>
         <p className="text-sm text-[#40916C] mt-1">Here&apos;s your financial pulse for {monthLabel} · v2.0 ✦</p>
+      </div>
+
+      {/* Wallet Balance Banner */}
+      <div className="bg-[#1B4332] rounded-2xl p-5 text-white shadow-lg">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs text-[#74C69D] font-semibold uppercase tracking-wide">Wallet Balance</p>
+          <a href="/wallet" className="text-xs text-[#74C69D] flex items-center gap-1 hover:text-white transition-colors">
+            Open wallet <ArrowUpRight size={11} />
+          </a>
+        </div>
+        <p className="text-4xl font-extrabold tracking-tight mb-4">{fmt(walletBalance)}</p>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-white/10 rounded-xl p-3">
+            <p className="text-xs text-[#74C69D] mb-0.5">This month in</p>
+            <p className="text-base font-bold">{fmt(mIn)}</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3">
+            <p className="text-xs text-red-300 mb-0.5">This month out</p>
+            <p className="text-base font-bold">{fmt(mOut)}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <a
+            href="/wallet"
+            className="flex-1 text-center bg-white/15 hover:bg-white/25 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+          >
+            + Add Income
+          </a>
+          <a
+            href="/wallet"
+            className="flex-1 text-center bg-white/15 hover:bg-white/25 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+          >
+            − Add Expense
+          </a>
+        </div>
       </div>
 
       {/* Metric Cards */}
