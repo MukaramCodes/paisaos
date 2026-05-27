@@ -1,419 +1,316 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/AuthProvider';
-import { getTransactions, calcWallet, thisMonthTxs, spendByCategory, dailyAverage, Transaction } from '@/lib/transactions';
 import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
+  getTransactions, deleteTransaction, calcWallet, thisMonthTxs,
+  spendByCategory, dailyAverage, fmt, Transaction,
+} from '@/lib/transactions';
+import {
+  PieChart, Pie, Cell, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
 } from 'recharts';
-import { AlertTriangle, TrendingDown, TrendingUp, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ExternalLink, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 
-interface Category {
-  id: number;
-  name: string;
-  amount: number;
-  budget: number;
-  type: 'Needs' | 'Wants';
-  color: string;
-  intentional: boolean;
-}
-
-const initCategories: Category[] = [];
-
-const weeklyData = [
-  { week: 'Wk 1', needs: 14000, wants: 8000 },
-  { week: 'Wk 2', needs: 12500, wants: 9200 },
-  { week: 'Wk 3', needs: 11800, wants: 7400 },
-  { week: 'Wk 4', needs: 15900, wants: 1800 },
+const COLORS = [
+  '#1B4332','#2D6A4F','#40916C','#52B788','#74C69D',
+  '#d97706','#f59e0b','#ef4444','#e879f9','#60a5fa',
 ];
 
-const COLORS = ['#1B4332','#2D6A4F','#40916C','#52B788','#74C69D','#d97706','#f59e0b','#fbbf24','#ef4444','#e879f9','#60a5fa','#f87171'];
+const NEEDS_CATS = ['Food & Dining', 'Bills & Utilities', 'Health', 'Education', 'Housing', 'Transport'];
 
-const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
+type Tab = 'all' | 'income' | 'expense';
+
+function buildWeekly(txs: Transaction[]) {
+  const weeks = [
+    { week: 'Wk 1', needs: 0, wants: 0 },
+    { week: 'Wk 2', needs: 0, wants: 0 },
+    { week: 'Wk 3', needs: 0, wants: 0 },
+    { week: 'Wk 4', needs: 0, wants: 0 },
+  ];
+  txs.filter(t => t.type === 'expense').forEach(t => {
+    const day = new Date(t.date + 'T00:00:00').getDate();
+    const idx = Math.min(Math.floor((day - 1) / 7), 3);
+    if (NEEDS_CATS.includes(t.category)) weeks[idx].needs += t.amount;
+    else weeks[idx].wants += t.amount;
+  });
+  return weeks;
+}
 
 export default function SpendingAutopsyPage() {
-  const { dataVersion, uid } = useAuth();
-  const [categories, setCategories] = useState<Category[]>(initCategories);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [mounted, setMounted] = useState(false);
-  const [selectedType, setSelectedType] = useState<'All' | 'Needs' | 'Wants'>('All');
-  const [showAdd, setShowAdd] = useState(false);
-  const [newEntry, setNewEntry] = useState({
-    name: '',
-    amount: '',
-    budget: '',
-    type: 'Needs' as 'Needs' | 'Wants',
-    intentional: true,
-  });
+  const { uid, dataVersion } = useAuth();
+  const [txs, setTxs]       = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab]        = useState<Tab>('expense');
 
-  useEffect(() => {
-    const saved = localStorage.getItem('paisaos_spending');
-    if (saved) setCategories(JSON.parse(saved));
-    setMounted(true);
-  }, [dataVersion]);
-
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!uid) return;
-    getTransactions(uid).then(setTransactions).catch(() => {});
-  }, [uid, dataVersion]);
+    setLoading(true);
+    try { setTxs(await getTransactions(uid)); } catch {}
+    finally { setLoading(false); }
+  }, [uid]);
 
-  useEffect(() => {
-    if (mounted) localStorage.setItem('paisaos_spending', JSON.stringify(categories));
-  }, [categories, mounted]);
+  useEffect(() => { load(); }, [load, dataVersion]);
 
-  const addEntry = () => {
-    if (!newEntry.name || !newEntry.amount) return;
-    const colorIndex = categories.length % COLORS.length;
-    setCategories([...categories, {
-      id: Date.now(),
-      name: newEntry.name,
-      amount: Number(newEntry.amount),
-      budget: Number(newEntry.budget) || Number(newEntry.amount),
-      type: newEntry.type,
-      color: COLORS[colorIndex],
-      intentional: newEntry.intentional,
-    }]);
-    setNewEntry({ name: '', amount: '', budget: '', type: 'Needs', intentional: true });
-    setShowAdd(false);
+  const handleDelete = async (id: string) => {
+    setTxs(prev => prev.filter(t => t.id !== id));
+    await deleteTransaction(id).catch(() => load());
   };
 
-  const deleteEntry = (id: number) => setCategories(categories.filter((c) => c.id !== id));
+  // This-month analytics
+  const month        = thisMonthTxs(txs);
+  const { totalIn: mIn, totalOut: mOut } = calcWallet(month);
+  const saved        = mIn - mOut;
+  const savingsRate  = mIn > 0 ? Math.round((saved / mIn) * 100) : 0;
+  const dayAvg       = dailyAverage(month);
+  const topCats      = spendByCategory(month);
+  const topCat       = topCats[0];
+  const topCatPct    = mOut > 0 && topCat ? Math.round((topCat.amount / mOut) * 100) : 0;
+  const overspending = mOut > mIn && mIn > 0;
+  const heavyCat     = topCatPct >= 50 && !!topCat;
 
-  const filtered = selectedType === 'All' ? categories : categories.filter((c) => c.type === selectedType);
-  const total = filtered.reduce((s, c) => s + c.amount, 0);
-  const totalAll = categories.reduce((s, c) => s + c.amount, 0);
-  const overBudget = filtered.filter((c) => c.amount > c.budget);
-  const autopilot = categories.filter((c) => !c.intentional).reduce((s, c) => s + c.amount, 0);
-  const imr = totalAll > 0 ? Math.round(((totalAll - autopilot) / totalAll) * 100) : 100;
+  const pieData = topCats.map((c, i) => ({ name: c.category, value: c.amount, color: COLORS[i % COLORS.length] }));
+  const weekly  = buildWeekly(month);
 
-  const pieData = filtered.map((c) => ({ name: c.name, value: c.amount, color: c.color }));
-
-  // Live analytics from Supabase wallet transactions
-  const monthTxs = thisMonthTxs(transactions);
-  const { totalIn: walletIn, totalOut: walletOut } = calcWallet(monthTxs);
-  const topCats = spendByCategory(monthTxs);
-  const dayAvg = dailyAverage(monthTxs);
-  const topCat = topCats[0];
-  const topCatPct = walletOut > 0 && topCat ? Math.round((topCat.amount / walletOut) * 100) : 0;
-  const isOverspending = walletOut > walletIn && walletIn > 0;
-  const hasHeavyCat = topCatPct >= 50 && !!topCat;
+  const visible = txs.filter(t => tab === 'all' ? true : t.type === tab);
+  const empty   = !loading && txs.length === 0;
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-[#1B4332]">Spending Autopsy</h1>
-          <p className="text-sm text-[#40916C] mt-1">Understand your spending without judgement</p>
+          <p className="text-sm text-[#40916C] mt-1">
+            {new Date().toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })} · live from wallet
+          </p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-[#1B4332] text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#2D6A4F] transition-colors shadow-sm"
-        >
-          <Plus size={16} /> Add Spending
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            className="p-2 rounded-xl hover:bg-[#D8F3DC] text-[#40916C] transition-colors"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <Link
+            href="/wallet"
+            className="flex items-center gap-1.5 bg-[#1B4332] text-white px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#2D6A4F] transition-colors"
+          >
+            <ExternalLink size={13} /> Add Transaction
+          </Link>
+        </div>
       </div>
 
-      {/* Live Wallet Analytics */}
-      {transactions.length > 0 && (
-        <div className="bg-[#1B4332] rounded-2xl p-5 text-white">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-base font-bold">This Month – Live from Wallet</span>
-            <span className="text-xs bg-[#40916C] text-white px-2 py-0.5 rounded-full">Auto</span>
+      {/* Empty state */}
+      {empty && (
+        <div className="bg-white rounded-2xl p-12 shadow-card text-center">
+          <p className="text-gray-400 text-sm mb-5">No transactions yet. Start by adding income or expenses in your wallet.</p>
+          <Link
+            href="/wallet"
+            className="inline-flex items-center gap-2 bg-[#1B4332] text-white px-5 py-3 rounded-xl text-sm font-semibold hover:bg-[#2D6A4F] transition-colors"
+          >
+            Go to Wallet
+          </Link>
+        </div>
+      )}
+
+      {!empty && (
+        <>
+          {/* This month summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-2xl p-4 shadow-card">
+              <p className="text-xs text-gray-400 font-medium">Income</p>
+              <p className="text-xl font-bold text-[#1B4332] mt-1">{fmt(mIn)}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-card">
+              <p className="text-xs text-gray-400 font-medium">Total Spent</p>
+              <p className="text-xl font-bold text-red-500 mt-1">{fmt(mOut)}</p>
+            </div>
+            <div className={`rounded-2xl p-4 shadow-card ${saved >= 0 ? 'bg-[#D8F3DC]' : 'bg-red-50'}`}>
+              <p className="text-xs text-gray-400 font-medium">Saved</p>
+              <p className={`text-base font-bold mt-1 leading-tight ${saved >= 0 ? 'text-[#1B4332]' : 'text-red-500'}`}>
+                {fmt(saved)}
+                <span className="text-sm font-medium ml-1">({savingsRate}%)</span>
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-card">
+              <p className="text-xs text-gray-400 font-medium">Daily Avg</p>
+              <p className="text-xl font-bold text-[#1B4332] mt-1">{fmt(dayAvg)}</p>
+            </div>
           </div>
 
           {/* Alerts */}
-          {(isOverspending || hasHeavyCat) && (
-            <div className="space-y-2 mb-4">
-              {isOverspending && (
-                <div className="flex items-center gap-2 bg-red-500/20 border border-red-400/30 rounded-xl px-3 py-2 text-sm text-red-200">
+          {(overspending || heavyCat) && (
+            <div className="space-y-2">
+              {overspending && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
                   <AlertTriangle size={14} className="flex-shrink-0" />
-                  Spending exceeds income this month — review your expenses
+                  You spent {fmt(mOut - mIn)} more than you earned this month.
                 </div>
               )}
-              {hasHeavyCat && (
-                <div className="flex items-center gap-2 bg-orange-400/20 border border-orange-300/30 rounded-xl px-3 py-2 text-sm text-orange-200">
+              {heavyCat && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-sm text-amber-700">
                   <AlertTriangle size={14} className="flex-shrink-0" />
-                  <span><strong>{topCat.category}</strong> is {topCatPct}% of all spending — consider spreading costs</span>
+                  <span>
+                    <strong>{topCat.category}</strong> is {topCatPct}% of all spending — consider spreading costs.
+                  </span>
                 </div>
               )}
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white/10 rounded-xl p-3">
-              <p className="text-xs text-green-200 font-medium">Income</p>
-              <p className="text-lg font-bold mt-0.5">{fmt(walletIn)}</p>
+          {/* Charts */}
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Spending by category pie */}
+            <div className="bg-white rounded-2xl p-5 shadow-card">
+              <h3 className="font-bold text-[#1B4332] mb-4">Spending by Category</h3>
+              {pieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%" cy="50%"
+                      innerRadius={55} outerRadius={90}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => fmt(v)} />
+                    <Legend
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={v => <span className="text-xs text-gray-600">{v}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="py-10 text-center text-sm text-gray-400">No expenses this month</p>
+              )}
             </div>
-            <div className="bg-white/10 rounded-xl p-3">
-              <p className="text-xs text-red-200 font-medium">Total Spent</p>
-              <p className="text-lg font-bold mt-0.5">{fmt(walletOut)}</p>
-            </div>
-            <div className="bg-white/10 rounded-xl p-3">
-              <p className="text-xs text-green-200 font-medium">Daily Avg</p>
-              <p className="text-lg font-bold mt-0.5">{fmt(dayAvg)}</p>
-            </div>
-            <div className="bg-white/10 rounded-xl p-3">
-              <p className="text-xs text-green-200 font-medium">Top Category</p>
-              <p className="text-sm font-bold mt-0.5 truncate">{topCat ? topCat.category : '—'}</p>
-              {topCat && <p className="text-xs text-green-300">{fmt(topCat.amount)} · {topCatPct}%</p>}
+
+            {/* Weekly spending pattern bar chart */}
+            <div className="bg-white rounded-2xl p-5 shadow-card">
+              <h3 className="font-bold text-[#1B4332] mb-1">Weekly Spending Pattern</h3>
+              <p className="text-xs text-gray-400 mb-4">Needs vs Wants this month</p>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={weekly} barSize={22}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+                  <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tickFormatter={v => `${(v / 1000).toFixed(0)}k`}
+                    tick={{ fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip formatter={(v: number, name: string) => [fmt(v), name === 'needs' ? 'Needs' : 'Wants']} />
+                  <Bar dataKey="needs" fill="#1B4332" radius={[4, 4, 0, 0]} name="needs" />
+                  <Bar dataKey="wants" fill="#74C69D" radius={[4, 4, 0, 0]} name="wants" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          {topCats.length > 1 && (
-            <div className="mt-4 space-y-2">
-              {topCats.slice(0, 4).map((c) => {
-                const pct = walletOut > 0 ? Math.round((c.amount / walletOut) * 100) : 0;
-                return (
-                  <div key={c.category} className="flex items-center gap-3">
-                    <span className="text-xs text-green-200 w-28 truncate">{c.category}</span>
-                    <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#74C69D] rounded-full" style={{ width: `${pct}%` }} />
+          {/* Category breakdown bars */}
+          {topCats.length > 0 && (
+            <div className="bg-white rounded-2xl p-5 shadow-card">
+              <h3 className="font-bold text-[#1B4332] mb-4">Category Breakdown — This Month</h3>
+              <div className="space-y-3">
+                {topCats.map((c, i) => {
+                  const pct = mOut > 0 ? Math.round((c.amount / mOut) * 100) : 0;
+                  return (
+                    <div key={c.category} className="flex items-center gap-3">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-medium text-gray-700 truncate">{c.category}</span>
+                          <span className="font-bold text-[#1B4332] ml-2 flex-shrink-0">{fmt(c.amount)}</span>
+                        </div>
+                        <div className="h-1.5 bg-[#F4EFE6] rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-400 w-8 text-right flex-shrink-0">{pct}%</span>
                     </div>
-                    <span className="text-xs text-green-300 w-8 text-right">{pct}%</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* Add Spending Modal */}
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="font-bold text-[#1B4332] text-lg mb-4">Add Spending Entry</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">Category Name</label>
-                <input
-                  value={newEntry.name}
-                  onChange={(e) => setNewEntry({ ...newEntry, name: e.target.value })}
-                  placeholder="e.g. Electricity Bill"
-                  className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Amount Spent (₨)</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={newEntry.amount}
-                    onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value.replace(/[^0-9]/g, '') })}
-                    placeholder="e.g. 5000"
-                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Monthly Budget (₨)</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={newEntry.budget}
-                    onChange={(e) => setNewEntry({ ...newEntry, budget: e.target.value.replace(/[^0-9]/g, '') })}
-                    placeholder="e.g. 4000"
-                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Type</label>
-                  <select
-                    value={newEntry.type}
-                    onChange={(e) => setNewEntry({ ...newEntry, type: e.target.value as 'Needs' | 'Wants' })}
-                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
-                  >
-                    <option value="Needs">Needs</option>
-                    <option value="Wants">Wants</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Was it intentional?</label>
-                  <select
-                    value={newEntry.intentional ? 'yes' : 'no'}
-                    onChange={(e) => setNewEntry({ ...newEntry, intentional: e.target.value === 'yes' })}
-                    className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C]"
-                  >
-                    <option value="yes">Yes – planned</option>
-                    <option value="no">No – autopilot</option>
-                  </select>
-                </div>
-              </div>
+          {/* Transaction history */}
+          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-[#1B4332]">Transaction History</h3>
+              <span className="text-xs text-gray-400">{txs.length} records</span>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowAdd(false)}
-                className="flex-1 py-2.5 border border-[#D8F3DC] rounded-xl text-sm font-medium text-gray-500 hover:bg-[#F4EFE6] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addEntry}
-                className="flex-1 py-2.5 bg-[#1B4332] text-white rounded-xl text-sm font-semibold hover:bg-[#2D6A4F] transition-colors"
-              >
-                Add Entry
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 shadow-card">
-          <p className="text-xs text-gray-500 font-medium">Total Spent</p>
-          <p className="text-xl font-bold text-[#1B4332] mt-1">{fmt(totalAll)}</p>
-          <p className="text-xs text-gray-400">{categories.length} categories</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-card">
-          <p className="text-xs text-gray-500 font-medium">Intentional Money Rate</p>
-          <p className="text-xl font-bold text-[#1B4332] mt-1">{imr}%</p>
-          <p className="text-xs text-[#40916C]">{imr >= 70 ? 'Good range' : imr >= 50 ? 'Fair' : 'Needs work'}</p>
-        </div>
-        <div className="bg-red-50 rounded-2xl p-4 shadow-card">
-          <p className="text-xs text-gray-500 font-medium">Autopilot Spending</p>
-          <p className="text-xl font-bold text-red-600 mt-1">{fmt(autopilot)}</p>
-          <p className="text-xs text-gray-400">Unintentional</p>
-        </div>
-        <div className="bg-orange-50 rounded-2xl p-4 shadow-card">
-          <p className="text-xs text-gray-500 font-medium">Over Budget</p>
-          <p className="text-xl font-bold text-orange-600 mt-1">{overBudget.length} categories</p>
-          <p className="text-xs text-gray-400">Need attention</p>
-        </div>
-      </div>
-
-      {/* Charts row */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Pie */}
-        <div className="bg-white rounded-2xl p-6 shadow-card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-[#1B4332]">Spending by Category</h3>
-            <div className="flex gap-1">
-              {(['All', 'Needs', 'Wants'] as const).map((t) => (
+            {/* Filter tabs */}
+            <div className="flex border-b border-gray-100">
+              {(['all', 'income', 'expense'] as Tab[]).map(t => (
                 <button
                   key={t}
-                  onClick={() => setSelectedType(t)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${selectedType === t ? 'bg-[#1B4332] text-white' : 'bg-[#F4EFE6] text-[#2D6A4F] hover:bg-[#D8F3DC]'}`}
+                  onClick={() => setTab(t)}
+                  className={`flex-1 py-3 text-xs font-semibold transition-colors ${
+                    tab === t
+                      ? 'text-[#1B4332] border-b-2 border-[#1B4332]'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
                 >
-                  {t}
+                  {t === 'all' ? 'All' : t === 'income' ? 'Income' : 'Expenses'}
                 </button>
               ))}
             </div>
-          </div>
-          <p className="text-sm text-gray-500 mb-3">Total: <span className="font-bold text-[#1B4332]">{fmt(total)}</span></p>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value">
-                {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip formatter={(v: number) => fmt(v)} />
-              <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
 
-        {/* Weekly pattern */}
-        <div className="bg-white rounded-2xl p-6 shadow-card">
-          <h3 className="font-bold text-[#1B4332] mb-4">Weekly Spending Pattern</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={weeklyData} barSize={28}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-              <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v: number, name: string) => [fmt(v), name.charAt(0).toUpperCase() + name.slice(1)]} />
-              <Bar dataKey="needs" fill="#1B4332" radius={[4, 4, 0, 0]} name="Needs" />
-              <Bar dataKey="wants" fill="#74C69D" radius={[4, 4, 0, 0]} name="Wants" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Over budget alerts */}
-      {overBudget.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={18} className="text-orange-500" />
-            <h3 className="font-bold text-orange-700">Budget Overruns This Month</h3>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {overBudget.map((c) => (
-              <div key={c.id} className="bg-white rounded-xl p-3 border border-orange-100">
-                <div className="flex justify-between items-start">
-                  <p className="font-semibold text-[#1C1C1C] text-sm">{c.name}</p>
-                  <span className="text-xs text-red-500 font-bold">+{fmt(c.amount - c.budget)}</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">Spent {fmt(c.amount)} vs budget {fmt(c.budget)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Category Table */}
-      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-[#1B4332]">All Categories</h3>
-          <span className="text-xs text-gray-400">{categories.length} entries · {fmt(totalAll)} total</span>
-        </div>
-        <div className="divide-y divide-gray-50">
-          {categories.map((c) => {
-            const over = c.amount > c.budget;
-            const barPct = Math.min(Math.round((c.amount / Math.max(c.budget, 1)) * 100), 150);
-            return (
-              <div key={c.id} className="px-5 py-4 hover:bg-[#F4EFE6]/50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-sm font-medium text-[#1C1C1C]">{c.name}</span>
-                      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{c.type}</span>
-                      {!c.intentional && (
-                        <span className="text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <TrendingDown size={10} /> Autopilot
-                        </span>
-                      )}
-                    </div>
-                    <div className="h-1.5 bg-[#F4EFE6] rounded-full overflow-hidden w-full max-w-xs">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${Math.min(barPct, 100)}%`, backgroundColor: over ? '#ef4444' : c.color }}
-                      />
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`text-sm font-bold tabular-nums ${over ? 'text-red-500' : 'text-[#1B4332]'}`}>
-                      {fmt(c.amount)}
-                    </p>
-                    <p className="text-xs text-gray-400">of {fmt(c.budget)}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {over ? <TrendingUp size={16} className="text-red-400" /> : <TrendingDown size={16} className="text-[#40916C]" />}
-                    <button
-                      onClick={() => deleteEntry(c.id)}
-                      className="text-gray-300 hover:text-red-400 transition-colors"
+            {visible.length === 0 ? (
+              <div className="py-10 text-center text-sm text-gray-400">No transactions</div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {visible.map(tx => (
+                  <div
+                    key={tx.id}
+                    className="flex items-center gap-3 px-4 py-3 group hover:bg-gray-50 transition-colors"
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                        tx.type === 'income' ? 'bg-[#D8F3DC] text-[#1B4332]' : 'bg-red-50 text-red-500'
+                      }`}
                     >
-                      <Trash2 size={14} />
+                      {tx.type === 'income' ? '↑' : '↓'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{tx.category}</p>
+                      <p className="text-xs text-gray-400">
+                        {tx.note ? `${tx.note} · ` : ''}
+                        {new Date(tx.date + 'T00:00:00').toLocaleDateString('en-PK', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                    <p className={`text-sm font-bold flex-shrink-0 ${tx.type === 'income' ? 'text-[#1B4332]' : 'text-red-500'}`}>
+                      {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
+                    </p>
+                    <button
+                      onClick={() => handleDelete(tx.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-400 transition-all flex-shrink-0"
+                    >
+                      <Trash2 size={13} />
                     </button>
                   </div>
-                </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
