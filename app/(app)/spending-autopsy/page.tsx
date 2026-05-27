@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
+import { getTransactions, calcWallet, thisMonthTxs, spendByCategory, dailyAverage, Transaction } from '@/lib/transactions';
 import {
   PieChart,
   Pie,
@@ -41,8 +42,9 @@ const COLORS = ['#1B4332','#2D6A4F','#40916C','#52B788','#74C69D','#d97706','#f5
 const fmt = (n: number) => '₨ ' + n.toLocaleString('en-PK');
 
 export default function SpendingAutopsyPage() {
-  const { dataVersion } = useAuth();
+  const { dataVersion, uid } = useAuth();
   const [categories, setCategories] = useState<Category[]>(initCategories);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [mounted, setMounted] = useState(false);
   const [selectedType, setSelectedType] = useState<'All' | 'Needs' | 'Wants'>('All');
   const [showAdd, setShowAdd] = useState(false);
@@ -59,6 +61,11 @@ export default function SpendingAutopsyPage() {
     if (saved) setCategories(JSON.parse(saved));
     setMounted(true);
   }, [dataVersion]);
+
+  useEffect(() => {
+    if (!uid) return;
+    getTransactions(uid).then(setTransactions).catch(() => {});
+  }, [uid, dataVersion]);
 
   useEffect(() => {
     if (mounted) localStorage.setItem('paisaos_spending', JSON.stringify(categories));
@@ -91,6 +98,16 @@ export default function SpendingAutopsyPage() {
 
   const pieData = filtered.map((c) => ({ name: c.name, value: c.amount, color: c.color }));
 
+  // Live analytics from Supabase wallet transactions
+  const monthTxs = thisMonthTxs(transactions);
+  const { totalIn: walletIn, totalOut: walletOut } = calcWallet(monthTxs);
+  const topCats = spendByCategory(monthTxs);
+  const dayAvg = dailyAverage(monthTxs);
+  const topCat = topCats[0];
+  const topCatPct = walletOut > 0 && topCat ? Math.round((topCat.amount / walletOut) * 100) : 0;
+  const isOverspending = walletOut > walletIn && walletIn > 0;
+  const hasHeavyCat = topCatPct >= 50 && !!topCat;
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
@@ -106,6 +123,71 @@ export default function SpendingAutopsyPage() {
           <Plus size={16} /> Add Spending
         </button>
       </div>
+
+      {/* Live Wallet Analytics */}
+      {transactions.length > 0 && (
+        <div className="bg-[#1B4332] rounded-2xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-base font-bold">This Month – Live from Wallet</span>
+            <span className="text-xs bg-[#40916C] text-white px-2 py-0.5 rounded-full">Auto</span>
+          </div>
+
+          {/* Alerts */}
+          {(isOverspending || hasHeavyCat) && (
+            <div className="space-y-2 mb-4">
+              {isOverspending && (
+                <div className="flex items-center gap-2 bg-red-500/20 border border-red-400/30 rounded-xl px-3 py-2 text-sm text-red-200">
+                  <AlertTriangle size={14} className="flex-shrink-0" />
+                  Spending exceeds income this month — review your expenses
+                </div>
+              )}
+              {hasHeavyCat && (
+                <div className="flex items-center gap-2 bg-orange-400/20 border border-orange-300/30 rounded-xl px-3 py-2 text-sm text-orange-200">
+                  <AlertTriangle size={14} className="flex-shrink-0" />
+                  <span><strong>{topCat.category}</strong> is {topCatPct}% of all spending — consider spreading costs</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white/10 rounded-xl p-3">
+              <p className="text-xs text-green-200 font-medium">Income</p>
+              <p className="text-lg font-bold mt-0.5">{fmt(walletIn)}</p>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3">
+              <p className="text-xs text-red-200 font-medium">Total Spent</p>
+              <p className="text-lg font-bold mt-0.5">{fmt(walletOut)}</p>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3">
+              <p className="text-xs text-green-200 font-medium">Daily Avg</p>
+              <p className="text-lg font-bold mt-0.5">{fmt(dayAvg)}</p>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3">
+              <p className="text-xs text-green-200 font-medium">Top Category</p>
+              <p className="text-sm font-bold mt-0.5 truncate">{topCat ? topCat.category : '—'}</p>
+              {topCat && <p className="text-xs text-green-300">{fmt(topCat.amount)} · {topCatPct}%</p>}
+            </div>
+          </div>
+
+          {topCats.length > 1 && (
+            <div className="mt-4 space-y-2">
+              {topCats.slice(0, 4).map((c) => {
+                const pct = walletOut > 0 ? Math.round((c.amount / walletOut) * 100) : 0;
+                return (
+                  <div key={c.category} className="flex items-center gap-3">
+                    <span className="text-xs text-green-200 w-28 truncate">{c.category}</span>
+                    <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#74C69D] rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs text-green-300 w-8 text-right">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add Spending Modal */}
       {showAdd && (

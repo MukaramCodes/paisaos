@@ -20,8 +20,9 @@ import {
   Zap,
 } from 'lucide-react';
 import MetricCard from '@/components/MetricCard';
+import { getTransactions, calcWallet, thisMonthTxs, Transaction } from '@/lib/transactions';
 
-const fmt = (n: number) => '₨ ' + Math.abs(n).toLocaleString('en-PK');
+const fmt = (n: number) => '₨ ' + Math.abs(Math.round(n)).toLocaleString('en-PK');
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -31,13 +32,14 @@ function getGreeting() {
 }
 
 export default function DashboardPage() {
-  const { dataVersion } = useAuth();
+  const { dataVersion, uid } = useAuth();
   const [userName, setUserName] = useState('');
   const [income, setIncome] = useState(0);
   const [totalAssets, setTotalAssets] = useState(0);
   const [totalLiabilities, setTotalLiabilities] = useState(0);
   const [spendCategories, setSpendCategories] = useState<any[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   useEffect(() => {
     localStorage.setItem('paisaos_visited', 'true');
@@ -67,6 +69,11 @@ export default function DashboardPage() {
     if (savedGoals) setGoals(JSON.parse(savedGoals));
   }, [dataVersion]);
 
+  useEffect(() => {
+    if (!uid) return;
+    getTransactions(uid).then(setTransactions).catch(() => {});
+  }, [uid, dataVersion]);
+
   const netWorth = totalAssets - totalLiabilities;
   const totalSpent = spendCategories.reduce((s, c) => s + (c.amount || 0), 0);
   const savingsAmount = Math.max(0, income - totalSpent);
@@ -88,6 +95,11 @@ export default function DashboardPage() {
   const imrColor = imr >= 80 ? '#2D6A4F' : imr >= 65 ? '#40916C' : imr >= 50 ? '#d97706' : '#dc2626';
   const monthLabel = new Date().toLocaleDateString('en-PK', { month: 'long', year: 'numeric' });
   const activeGoals = goals.slice(0, 3);
+
+  const { balance: walletBalance, totalIn, totalOut } = calcWallet(transactions);
+  const monthTxs = thisMonthTxs(transactions);
+  const { totalIn: mIn, totalOut: mOut } = calcWallet(monthTxs);
+  const recentTxs = transactions.slice(0, 5);
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
@@ -281,35 +293,48 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-2xl p-6 shadow-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-[#1B4332]">Recent Activity</h3>
-            <a href="/spending-autopsy" className="text-xs text-[#40916C] font-medium flex items-center gap-1 hover:underline">
-              Full analysis <ArrowUpRight size={12} />
+            <h3 className="font-bold text-[#1B4332]">Wallet</h3>
+            <a href="/wallet" className="text-xs text-[#40916C] font-medium flex items-center gap-1 hover:underline">
+              Open wallet <ArrowUpRight size={12} />
             </a>
           </div>
-          {spendCategories.length > 0 ? (
-            <div className="space-y-3">
-              {spendCategories.slice(0, 5).map((c) => (
-                <div key={c.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#F4EFE6] flex items-center justify-center flex-shrink-0">
-                      <span className="text-[10px] font-bold text-[#40916C]">{c.type?.slice(0, 2) || 'Sp'}</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-[#1C1C1C] leading-tight">{c.name}</p>
-                      <p className="text-xs text-gray-400">{c.type}</p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-bold tabular-nums text-[#1C1C1C]">
-                    -{fmt(c.amount)}
-                  </span>
+          {transactions.length > 0 ? (
+            <>
+              <div className="bg-[#1B4332] rounded-xl p-4 mb-4 text-white">
+                <p className="text-xs text-[#74C69D] font-medium mb-0.5">Balance</p>
+                <p className="text-2xl font-extrabold">{fmt(walletBalance)}</p>
+                <div className="flex gap-4 mt-2 text-xs text-[#74C69D]">
+                  <span>↑ {fmt(mIn)} this month</span>
+                  <span>↓ {fmt(mOut)} this month</span>
                 </div>
-              ))}
-            </div>
+              </div>
+              <div className="space-y-2">
+                {recentTxs.map((tx) => (
+                  <div key={tx.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        tx.type === 'income' ? 'bg-[#D8F3DC] text-[#1B4332]' : 'bg-red-50 text-red-500'
+                      }`}>
+                        {tx.type === 'income' ? '↑' : '↓'}
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-800">{tx.category}</p>
+                        <p className="text-[10px] text-gray-400">{tx.note || new Date(tx.date + 'T00:00:00').toLocaleDateString('en-PK', { day: 'numeric', month: 'short' })}</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold ${tx.type === 'income' ? 'text-[#1B4332]' : 'text-red-500'}`}>
+                      {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center h-32 text-center">
-              <p className="text-gray-400 text-sm">No spending data yet</p>
-              <a href="/spending-autopsy" className="text-[#40916C] text-xs mt-1 font-medium hover:underline">
-                Start tracking spending →
+              <Wallet size={28} className="text-gray-300 mb-2" />
+              <p className="text-gray-400 text-sm">No transactions yet</p>
+              <a href="/wallet" className="text-[#40916C] text-xs mt-1 font-medium hover:underline">
+                Add income or expense →
               </a>
             </div>
           )}
@@ -319,7 +344,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Add Transaction', href: '/spending-autopsy', icon: '➕' },
+          { label: 'Add Transaction', href: '/wallet', icon: '➕' },
           { label: 'Top Up a Pot', href: '/savings-pots', icon: '🏺' },
           { label: 'Update Net Worth', href: '/net-worth', icon: '📊' },
           { label: 'Run a Calculation', href: '/calculators', icon: '🧮' },

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ArrowLeftRight, PiggyBank, Target,
-  Stethoscope, Calculator, TrendingUp, Menu, X, UserCircle, LogOut,
+  Stethoscope, Calculator, TrendingUp, Menu, X, UserCircle, LogOut, Wallet,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -13,6 +13,7 @@ import SyncIndicator from '@/components/SyncIndicator';
 
 const navItems = [
   { href: '/dashboard',        label: 'Dashboard',        icon: LayoutDashboard },
+  { href: '/wallet',           label: 'Wallet',            icon: Wallet          },
   { href: '/money-flow',       label: 'Money Flow',        icon: ArrowLeftRight  },
   { href: '/savings-pots',     label: 'Savings Pots',      icon: PiggyBank       },
   { href: '/goals',            label: 'Goals',             icon: Target          },
