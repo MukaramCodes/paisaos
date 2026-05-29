@@ -20,9 +20,8 @@ import {
   Zap,
 } from 'lucide-react';
 import MetricCard from '@/components/MetricCard';
-import { getTransactions, calcWallet, thisMonthTxs, Transaction } from '@/lib/transactions';
-
-const fmt = (n: number) => '₨ ' + Math.abs(Math.round(n)).toLocaleString('en-PK');
+import { getTransactions, calcWallet, thisMonthTxs, fmt, Transaction } from '@/lib/transactions';
+import { getLoans, Loan } from '@/lib/loans';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -40,6 +39,7 @@ export default function DashboardPage() {
   const [spendCategories, setSpendCategories] = useState<any[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loans, setLoans]               = useState<Loan[]>([]);
 
   useEffect(() => {
     localStorage.setItem('paisaos_visited', 'true');
@@ -72,6 +72,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!uid) return;
     getTransactions(uid).then(setTransactions).catch(() => {});
+    getLoans(uid).then(setLoans).catch(() => {});
   }, [uid, dataVersion]);
 
   const netWorth = totalAssets - totalLiabilities;
@@ -96,10 +97,12 @@ export default function DashboardPage() {
   const monthLabel = new Date().toLocaleDateString('en-PK', { month: 'long', year: 'numeric' });
   const activeGoals = goals.slice(0, 3);
 
-  const { balance: walletBalance, totalIn, totalOut } = calcWallet(transactions);
+  const { balance: walletBalance, totalIn, totalOut, loanIn, loanOut } = calcWallet(transactions);
   const monthTxs = thisMonthTxs(transactions);
   const { totalIn: mIn, totalOut: mOut } = calcWallet(monthTxs);
-  const recentTxs = transactions.slice(0, 5);
+  const recentTxs     = transactions.slice(0, 5);
+  const activeLoans   = loans.filter(l => l.status === 'active');
+  const loanRemaining = activeLoans.reduce((s, l) => s + l.remaining_amount, 0);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -112,36 +115,47 @@ export default function DashboardPage() {
       </div>
 
       {/* Wallet Balance Banner */}
-      <div className="bg-[#1B4332] rounded-2xl p-5 text-white shadow-lg">
+      <div className={`rounded-2xl p-5 text-white shadow-lg ${walletBalance < 0 ? 'bg-red-600' : 'bg-[#1B4332]'}`}>
         <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-[#74C69D] font-semibold uppercase tracking-wide">Wallet Balance</p>
-          <a href="/wallet" className="text-xs text-[#74C69D] flex items-center gap-1 hover:text-white transition-colors">
+          <p className={`text-xs font-semibold uppercase tracking-wide ${walletBalance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
+            {walletBalance < 0 ? '⚠ Wallet Overdrawn' : 'Wallet Balance'}
+          </p>
+          <a href="/wallet" className={`text-xs flex items-center gap-1 hover:text-white transition-colors ${walletBalance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
             Open wallet <ArrowUpRight size={11} />
           </a>
         </div>
         <p className="text-4xl font-extrabold tracking-tight mb-4">{fmt(walletBalance)}</p>
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-white/10 rounded-xl p-3">
-            <p className="text-xs text-[#74C69D] mb-0.5">This month in</p>
+            <p className={`text-xs mb-0.5 ${walletBalance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>This month in</p>
             <p className="text-base font-bold">{fmt(mIn)}</p>
           </div>
           <div className="bg-white/10 rounded-xl p-3">
             <p className="text-xs text-red-300 mb-0.5">This month out</p>
             <p className="text-base font-bold">{fmt(mOut)}</p>
           </div>
+          {loanIn > 0 && (
+            <div className="bg-white/10 rounded-xl p-3">
+              <p className="text-xs text-blue-200 mb-0.5">Loan Received</p>
+              <p className="text-base font-bold">{fmt(loanIn)}</p>
+            </div>
+          )}
+          {activeLoans.length > 0 && (
+            <div className="bg-white/10 rounded-xl p-3">
+              <p className="text-xs text-orange-200 mb-0.5">Active Loans</p>
+              <p className="text-base font-bold">{fmt(loanRemaining)}</p>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
-          <a
-            href="/wallet"
-            className="flex-1 text-center bg-white/15 hover:bg-white/25 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
-          >
+          <a href="/wallet" className="flex-1 text-center bg-white/15 hover:bg-white/25 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
             + Add Income
           </a>
-          <a
-            href="/wallet"
-            className="flex-1 text-center bg-white/15 hover:bg-white/25 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
-          >
+          <a href="/wallet" className="flex-1 text-center bg-white/15 hover:bg-white/25 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
             − Add Expense
+          </a>
+          <a href="/wallet" className="flex-1 text-center bg-white/15 hover:bg-white/25 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+            Loans
           </a>
         </div>
       </div>
@@ -335,10 +349,12 @@ export default function DashboardPage() {
           </div>
           {transactions.length > 0 ? (
             <>
-              <div className="bg-[#1B4332] rounded-xl p-4 mb-4 text-white">
-                <p className="text-xs text-[#74C69D] font-medium mb-0.5">Balance</p>
+              <div className={`rounded-xl p-4 mb-4 text-white ${walletBalance < 0 ? 'bg-red-600' : 'bg-[#1B4332]'}`}>
+                <p className={`text-xs font-medium mb-0.5 ${walletBalance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
+                  {walletBalance < 0 ? '⚠ Overdrawn' : 'Balance'}
+                </p>
                 <p className="text-2xl font-extrabold">{fmt(walletBalance)}</p>
-                <div className="flex gap-4 mt-2 text-xs text-[#74C69D]">
+                <div className={`flex gap-4 mt-2 text-xs ${walletBalance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
                   <span>↑ {fmt(mIn)} this month</span>
                   <span>↓ {fmt(mOut)} this month</span>
                 </div>
@@ -348,17 +364,23 @@ export default function DashboardPage() {
                   <div key={tx.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                        tx.type === 'income' ? 'bg-[#D8F3DC] text-[#1B4332]' : 'bg-red-50 text-red-500'
+                        tx.type === 'income'        ? 'bg-[#D8F3DC] text-[#1B4332]' :
+                        tx.type === 'loan_received' ? 'bg-blue-50 text-blue-600'    :
+                        tx.type === 'loan_payment'  ? 'bg-orange-50 text-orange-600' :
+                        'bg-red-50 text-red-500'
                       }`}>
-                        {tx.type === 'income' ? '↑' : '↓'}
+                        {tx.type === 'income' ? '↑' : tx.type === 'loan_received' ? '←' : tx.type === 'loan_payment' ? '→' : '↓'}
                       </div>
                       <div>
                         <p className="text-xs font-medium text-gray-800">{tx.category}</p>
                         <p className="text-[10px] text-gray-400">{tx.note || new Date(tx.date + 'T00:00:00').toLocaleDateString('en-PK', { day: 'numeric', month: 'short' })}</p>
                       </div>
                     </div>
-                    <span className={`text-xs font-bold ${tx.type === 'income' ? 'text-[#1B4332]' : 'text-red-500'}`}>
-                      {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
+                    <span className={`text-xs font-bold ${
+                      tx.type === 'income' || tx.type === 'loan_received' ? 'text-[#1B4332]' :
+                      tx.type === 'loan_payment' ? 'text-orange-600' : 'text-red-500'
+                    }`}>
+                      {tx.type === 'income' || tx.type === 'loan_received' ? '+' : '-'}{fmt(tx.amount)}
                     </span>
                   </div>
                 ))}
