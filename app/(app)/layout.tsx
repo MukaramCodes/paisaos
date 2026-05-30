@@ -34,9 +34,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!uid) return null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen overflow-x-hidden">
       <Sidebar />
-      <main className="flex-1 lg:ml-60 min-h-screen bg-[#F4EFE6] pt-14 lg:pt-0">
+      <main className="flex-1 min-w-0 lg:ml-60 min-h-screen bg-[#F4EFE6] pt-14 lg:pt-0 overflow-x-hidden">
         {children}
       </main>
     </div>
