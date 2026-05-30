@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import UpdateBanner from '@/components/UpdateBanner';
 import AuthProvider from '@/components/AuthProvider';
@@ -15,6 +15,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Proper Next.js 14 way to set viewport — raw <meta> tags in <head> are ignored by the framework
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -23,7 +31,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <meta name="theme-color" content="#1B4332" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

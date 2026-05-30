@@ -17,12 +17,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F4EFE6] flex items-center justify-center">
+      <div className="min-h-screen bg-[#1B4332] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-[#1B4332] flex items-center justify-center mx-auto mb-3 animate-pulse">
-            <span className="text-white font-bold text-lg">₨</span>
-          </div>
-          <p className="text-sm text-[#40916C] font-medium">Loading PaisaOS…</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon-192.png"
+            alt="PaisaOS"
+            className="w-20 h-20 rounded-2xl mx-auto mb-4 animate-pulse"
+          />
+          <p className="text-sm text-[#74C69D] font-medium">Loading PaisaOS…</p>
         </div>
       </div>
     );

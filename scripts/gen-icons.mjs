@@ -60,7 +60,8 @@ function rupee(lx, ly) {
 function genPNG(size) {
   const GR = 27, GG = 67, GB = 50;   // #1B4332
   const cx = size / 2, cy = size / 2;
-  const scale = size * 0.42;
+  // 0.30 keeps the symbol inside the maskable safe zone (centre 80% circle)
+  const scale = size * 0.30;
 
   const rows = [];
   for (let y = 0; y < size; y++) {
