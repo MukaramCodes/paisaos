@@ -1,16 +1,25 @@
 'use client';
 
 import { useAuth } from '@/components/AuthProvider';
-import { Cloud, CloudOff, AlertCircle } from 'lucide-react';
+import { Cloud, CloudOff, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function SyncIndicator() {
-  const { isOnline, syncError } = useAuth();
+  const { isOnline, syncError, pendingCount } = useAuth();
 
   if (!isOnline) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-amber-500 font-medium">
         <CloudOff size={13} />
-        <span>Offline</span>
+        <span>{pendingCount > 0 ? `Offline · ${pendingCount} queued` : 'Offline'}</span>
+      </div>
+    );
+  }
+
+  if (pendingCount > 0) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-blue-500 font-medium">
+        <RefreshCw size={13} className="animate-spin" />
+        <span>Syncing {pendingCount}…</span>
       </div>
     );
   }

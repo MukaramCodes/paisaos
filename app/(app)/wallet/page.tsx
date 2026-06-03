@@ -35,7 +35,7 @@ const TX_STYLE: Record<TransactionType, { icon: string; bg: string; text: string
 };
 
 export default function WalletPage() {
-  const { uid } = useAuth();
+  const { uid, dataVersion } = useAuth();
   const [txs, setTxs]         = useState<Transaction[]>([]);
   const [loans, setLoans]     = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +74,7 @@ export default function WalletPage() {
     finally { setLoading(false); }
   }, [uid]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, dataVersion]);
 
   const CUSTOM = '__custom__';
 
@@ -148,7 +148,7 @@ export default function WalletPage() {
         note: `To ${activeLoan.lender_name}`, date: todayStr(), loan_id: activeLoan.id,
       });
       setTxs(prev => [tx, ...prev]);
-      const updated = await payLoan(activeLoan.id, n);
+      const updated = await payLoan(activeLoan.id, n, uid!);
       setLoans(prev => prev.map(l => l.id === updated.id ? updated : l));
       setForm(null); setActiveLoan(null);
     } catch (e: any) { setFormError(e.message); }
@@ -165,7 +165,7 @@ export default function WalletPage() {
         note: `To ${loan.lender_name} (full)`, date: todayStr(), loan_id: loan.id,
       });
       setTxs(prev => [tx, ...prev]);
-      const updated = await payLoan(loan.id, loan.remaining_amount);
+      const updated = await payLoan(loan.id, loan.remaining_amount, uid!);
       setLoans(prev => prev.map(l => l.id === updated.id ? updated : l));
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
@@ -173,12 +173,12 @@ export default function WalletPage() {
 
   const handleDeleteTx = async (id: string) => {
     setTxs(prev => prev.filter(t => t.id !== id));
-    await deleteTransaction(id).catch(() => load());
+    await deleteTransaction(id, uid!).catch(() => load());
   };
 
   const handleDeleteLoan = async (id: string) => {
     setLoans(prev => prev.filter(l => l.id !== id));
-    await deleteLoan(id).catch(() => load());
+    await deleteLoan(id, uid!).catch(() => load());
   };
 
   // ── Balance = THIS MONTH only. Previous months stay in history only.

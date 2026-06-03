@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { migrateOrPull, periodicSync, readSnapshot } from '@/lib/sync';
+import { flushQueue, queueSize } from '@/lib/offlineQueue';
 
 interface AuthContextType {
   uid: string | null;
@@ -10,6 +11,7 @@ interface AuthContextType {
   isOnline: boolean;
   syncError: string | null;
   dataVersion: number;
+  pendingCount: number;
   setIdentity: (uid: string, name: string) => void;
   clearIdentity: () => void;
 }
@@ -21,6 +23,7 @@ const AuthContext = createContext<AuthContextType>({
   isOnline: true,
   syncError: null,
   dataVersion: 0,
+  pendingCount: 0,
   setIdentity: () => {},
   clearIdentity: () => {},
 });
@@ -34,12 +37,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [isOnline, setIsOnline]     = useState(true);
   const [syncError, setSyncError]   = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const interval    = useRef<ReturnType<typeof setInterval> | null>(null);
   const onlineRef   = useRef(true);
   const snapshotRef = useRef<Record<string, string>>({});
 
   const bumpVersion = () => setDataVersion(v => v + 1);
+  const uidRef = useRef<string | null>(null);
 
   const stopSync = () => {
     if (interval.current) { clearInterval(interval.current); interval.current = null; }
@@ -79,8 +84,24 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       .finally(() => startSync(userId));
   };
 
+  // Keep pendingCount in sync whenever the queue changes
   useEffect(() => {
-    const goOnline  = () => { onlineRef.current = true;  setIsOnline(true);  };
+    const update = () => setPendingCount(queueSize());
+    update();
+    window.addEventListener('paisaos:queue-changed', update);
+    return () => window.removeEventListener('paisaos:queue-changed', update);
+  }, []);
+
+  useEffect(() => {
+    const goOnline = async () => {
+      onlineRef.current = true;
+      setIsOnline(true);
+      // Flush any offline operations that were queued while disconnected
+      if (uidRef.current) {
+        const synced = await flushQueue(uidRef.current);
+        if (synced > 0) bumpVersion();
+      }
+    };
     const goOffline = () => { onlineRef.current = false; setIsOnline(false); };
     window.addEventListener('online',  goOnline);
     window.addEventListener('offline', goOffline);
@@ -91,6 +112,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (storedUid) {
       setUid(storedUid);
       setName(storedName);
+      uidRef.current = storedUid;
       beginSync(storedUid);
     }
 
@@ -106,6 +128,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const setIdentity = (newUid: string, newName: string) => {
     setUid(newUid);
     setName(newName);
+    uidRef.current = newUid;
     beginSync(newUid);
   };
 
@@ -119,7 +142,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <AuthContext.Provider value={{ uid, name, loading, isOnline, syncError, dataVersion, setIdentity, clearIdentity }}>
+    <AuthContext.Provider value={{ uid, name, loading, isOnline, syncError, dataVersion, pendingCount, setIdentity, clearIdentity }}>
       {children}
     </AuthContext.Provider>
   );
