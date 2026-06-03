@@ -10,6 +10,7 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { useAuth } from '@/components/AuthProvider';
 import SyncIndicator from '@/components/SyncIndicator';
+import InstallPWA from '@/components/InstallPWA';
 
 const navItems = [
   { href: '/dashboard',        label: 'Dashboard',        icon: LayoutDashboard },
@@ -82,6 +83,7 @@ export default function Sidebar() {
             <p className="text-sm font-semibold text-[#1B4332] truncate">{name}</p>
           </div>
         )}
+        <InstallPWA />
         <div className="flex items-center justify-between px-1">
           <SyncIndicator />
           <button
