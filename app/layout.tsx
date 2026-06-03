@@ -29,6 +29,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Capture install prompt before React mounts — the event fires very early */}
+        <script dangerouslySetInnerHTML={{ __html: `window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__pwaPrompt=e;});` }} />
         <meta name="theme-color" content="#1B4332" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
