@@ -86,7 +86,7 @@ export default function WalletPage() {
     }
     if (mode === 'pay_loan' && loan) {
       setActiveLoan(loan);
-      setPayAmt(String(loan.remaining_amount));
+      setPayAmt(''); // user enters partial amount themselves
     }
   };
 
@@ -149,6 +149,22 @@ export default function WalletPage() {
     finally { setSaving(false); }
   };
 
+  // Pay the full remaining amount in one click — no form needed
+  const handlePayFull = async (loan: Loan) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const tx = await addTransaction(uid!, {
+        type: 'loan_payment', amount: loan.remaining_amount, category: 'Loan Payment',
+        note: `To ${loan.lender_name} (full)`, date: todayStr(), loan_id: loan.id,
+      });
+      setTxs(prev => [tx, ...prev]);
+      const updated = await payLoan(loan.id, loan.remaining_amount);
+      setLoans(prev => prev.map(l => l.id === updated.id ? updated : l));
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
   const handleDeleteTx = async (id: string) => {
     setTxs(prev => prev.filter(t => t.id !== id));
     await deleteTransaction(id).catch(() => load());
@@ -159,9 +175,9 @@ export default function WalletPage() {
     await deleteLoan(id).catch(() => load());
   };
 
-  const { balance, totalIn, totalOut, loanIn, loanOut } = calcWallet(txs);
-  const month   = thisMonthTxs(txs);
-  const { totalIn: mIn, totalOut: mOut } = calcWallet(month);
+  // ── Balance = THIS MONTH only. Previous months stay in history only.
+  const month = thisMonthTxs(txs);
+  const { balance, totalIn: mIn, totalOut: mOut, loanIn: mLoanIn, loanOut: mLoanOut } = calcWallet(month);
   const dayAvg  = dailyAverage(month);
   const topCats = spendByCategory(month).slice(0, 3);
   const overspending = mOut > mIn && mIn > 0;
@@ -198,49 +214,40 @@ export default function WalletPage() {
         <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-600">{error}</div>
       )}
 
-      {/* Balance card — red if overdrawn */}
+      {/* Balance card — this month only; red if overdrawn */}
       <div className={`rounded-2xl p-5 text-white shadow-lg ${balance < 0 ? 'bg-red-600' : 'bg-[#1B4332]'}`}>
-        <p className={`text-sm font-medium mb-1 ${balance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
-          {balance < 0 ? '⚠ Wallet Overdrawn' : 'Current Balance'}
+        <p className={`text-xs font-semibold mb-0.5 ${balance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
+          {balance < 0 ? '⚠ Overdrawn This Month' : 'This Month\'s Balance'}
         </p>
         <p className="text-4xl font-extrabold tracking-tight">{fmt(balance)}</p>
-        <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-white/10">
+        <p className={`text-xs mt-1 mb-3 ${balance < 0 ? 'text-red-200' : 'text-[#74C69D]/70'}`}>
+          Resets each month · previous months in history
+        </p>
+        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-white/10">
           <div>
-            <p className={`text-xs ${balance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>Money In</p>
-            <p className="text-base font-bold">{fmt(totalIn)}</p>
+            <p className={`text-xs ${balance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>Income</p>
+            <p className="text-sm font-bold">{fmt(mIn)}</p>
           </div>
           <div>
             <p className="text-xs text-red-300">Expenses</p>
-            <p className="text-base font-bold">{fmt(totalOut)}</p>
+            <p className="text-sm font-bold">{fmt(mOut)}</p>
           </div>
-          {loanIn > 0 && (
+          <div>
+            <p className={`text-xs ${balance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>Daily avg</p>
+            <p className="text-sm font-bold">{fmt(dayAvg)}</p>
+          </div>
+          {mLoanIn > 0 && (
             <div>
-              <p className="text-xs text-blue-200">Loan Received</p>
-              <p className="text-base font-bold">{fmt(loanIn)}</p>
+              <p className="text-xs text-blue-200">Loan In</p>
+              <p className="text-sm font-bold">{fmt(mLoanIn)}</p>
             </div>
           )}
-          {loanOut > 0 && (
+          {mLoanOut > 0 && (
             <div>
-              <p className="text-xs text-orange-200">Loan Paid Back</p>
-              <p className="text-base font-bold">{fmt(loanOut)}</p>
+              <p className="text-xs text-orange-200">Loan Paid</p>
+              <p className="text-sm font-bold">{fmt(mLoanOut)}</p>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* This month stats */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-white rounded-xl p-3 border border-[#E8F4ED]">
-          <p className="text-xs text-gray-400 mb-1">Month in</p>
-          <p className="text-sm font-bold text-[#1B4332]">{fmt(mIn)}</p>
-        </div>
-        <div className="bg-white rounded-xl p-3 border border-[#E8F4ED]">
-          <p className="text-xs text-gray-400 mb-1">Month out</p>
-          <p className="text-sm font-bold text-red-500">{fmt(mOut)}</p>
-        </div>
-        <div className="bg-white rounded-xl p-3 border border-[#E8F4ED]">
-          <p className="text-xs text-gray-400 mb-1">Daily avg</p>
-          <p className="text-sm font-bold text-[#1B4332]">{fmt(dayAvg)}</p>
         </div>
       </div>
 
@@ -406,11 +413,11 @@ export default function WalletPage() {
         </div>
       )}
 
-      {/* Pay Loan form */}
+      {/* Partial Pay form */}
       {form === 'pay_loan' && activeLoan && (
         <div className="bg-white rounded-2xl border border-orange-100 p-5">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="font-bold text-sm text-orange-700">Pay Loan</h2>
+            <h2 className="font-bold text-sm text-orange-700">Partial Payment</h2>
             <button
               onClick={() => { setForm(null); setActiveLoan(null); }}
               className="text-gray-400 text-xl leading-none"
@@ -422,10 +429,13 @@ export default function WalletPage() {
           </p>
           <form onSubmit={handlePayLoan} className="space-y-3">
             <div>
-              <label className="text-xs font-semibold text-gray-500 mb-1 block">Payment Amount (₨)</label>
+              <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                How much are you paying? (₨)
+              </label>
               <input
                 type="number" min="1" step="any"
                 value={payAmt} onChange={e => setPayAmt(e.target.value)}
+                placeholder={`Max ${fmt(activeLoan.remaining_amount)}`}
                 className="w-full border border-orange-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50 font-semibold"
               />
             </div>
@@ -434,7 +444,7 @@ export default function WalletPage() {
               type="submit" disabled={saving}
               className="w-full py-3 rounded-xl font-bold text-sm text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-60 transition-colors"
             >
-              {saving ? 'Saving…' : 'Pay Loan'}
+              {saving ? 'Saving…' : 'Record Partial Payment'}
             </button>
           </form>
         </div>
@@ -489,12 +499,21 @@ export default function WalletPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      {/* Partial — enter a custom amount */}
                       <button
                         onClick={() => openForm('pay_loan', loan)}
-                        className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition-colors"
+                        className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg transition-colors"
                       >
-                        Pay
+                        Partial
+                      </button>
+                      {/* Pay Full — clears the whole remaining in one tap */}
+                      <button
+                        onClick={() => handlePayFull(loan)}
+                        disabled={saving}
+                        className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                      >
+                        Pay Full
                       </button>
                       <button
                         onClick={() => handleDeleteLoan(loan.id)}
