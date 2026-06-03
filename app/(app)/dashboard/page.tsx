@@ -97,9 +97,8 @@ export default function DashboardPage() {
   const monthLabel = new Date().toLocaleDateString('en-PK', { month: 'long', year: 'numeric' });
   const activeGoals = goals.slice(0, 3);
 
-  const { balance: walletBalance, totalIn, totalOut, loanIn, loanOut } = calcWallet(transactions);
   const monthTxs = thisMonthTxs(transactions);
-  const { totalIn: mIn, totalOut: mOut } = calcWallet(monthTxs);
+  const { balance: walletBalance, totalIn: mIn, totalOut: mOut, loanIn, loanOut } = calcWallet(monthTxs);
   const recentTxs     = transactions.slice(0, 5);
   const activeLoans   = loans.filter(l => l.status === 'active');
   const loanRemaining = activeLoans.reduce((s, l) => s + l.remaining_amount, 0);
@@ -118,7 +117,7 @@ export default function DashboardPage() {
       <div className={`rounded-2xl p-5 text-white shadow-lg ${walletBalance < 0 ? 'bg-red-600' : 'bg-[#1B4332]'}`}>
         <div className="flex items-center justify-between mb-1">
           <p className={`text-xs font-semibold uppercase tracking-wide ${walletBalance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
-            {walletBalance < 0 ? '⚠ Wallet Overdrawn' : 'Wallet Balance'}
+            {walletBalance < 0 ? '⚠ Overdrawn This Month' : 'This Month\'s Balance'}
           </p>
           <a href="/wallet" className={`text-xs flex items-center gap-1 hover:text-white transition-colors ${walletBalance < 0 ? 'text-red-200' : 'text-[#74C69D]'}`}>
             Open wallet <ArrowUpRight size={11} />
