@@ -45,10 +45,11 @@ export default function WalletPage() {
   const [form, setForm]       = useState<FormMode>(null);
   const [activeLoan, setActiveLoan] = useState<Loan | null>(null);
 
-  const [amount, setAmount]     = useState('');
-  const [category, setCategory] = useState('');
-  const [note, setNote]         = useState('');
-  const [date, setDate]         = useState(todayStr());
+  const [amount, setAmount]         = useState('');
+  const [category, setCategory]     = useState('');
+  const [customCat, setCustomCat]   = useState('');
+  const [note, setNote]             = useState('');
+  const [date, setDate]             = useState(todayStr());
 
   const [lenderName, setLenderName]       = useState('');
   const [loanAmt, setLoanAmt]             = useState('');
@@ -75,9 +76,11 @@ export default function WalletPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const CUSTOM = '__custom__';
+
   const openForm = (mode: FormMode, loan?: Loan) => {
     setForm(mode); setFormError('');
-    setAmount(''); setNote(''); setDate(todayStr());
+    setAmount(''); setNote(''); setDate(todayStr()); setCustomCat('');
     if (mode === 'income')  setCategory(INCOME_CATEGORIES[0]);
     if (mode === 'expense') setCategory(EXPENSE_CATEGORIES[0]);
     if (mode === 'loan') {
@@ -95,9 +98,12 @@ export default function WalletPage() {
     const n = parseFloat(amount);
     if (!n || n <= 0) { setFormError('Enter a valid amount.'); return; }
     if (form !== 'income' && form !== 'expense') return;
+    const finalCategory = category === CUSTOM
+      ? (customCat.trim() || 'Other')
+      : category;
     setSaving(true); setFormError('');
     try {
-      const tx = await addTransaction(uid!, { type: form, amount: n, category, note, date });
+      const tx = await addTransaction(uid!, { type: form, amount: n, category: finalCategory, note, date });
       setTxs(prev => [tx, ...prev]);
       setForm(null);
     } catch (e: any) { setFormError(e.message); }
@@ -311,9 +317,22 @@ export default function WalletPage() {
                   className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C] bg-[#F4EFE6] appearance-none"
                 >
                   {cats.map(c => <option key={c}>{c}</option>)}
+                  {form === 'expense' && (
+                    <option value={CUSTOM}>✏ Custom…</option>
+                  )}
                 </select>
                 <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
+              {category === CUSTOM && (
+                <input
+                  type="text"
+                  value={customCat}
+                  onChange={e => setCustomCat(e.target.value)}
+                  placeholder="Type your category name"
+                  autoFocus
+                  className="mt-2 w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C] bg-[#F4EFE6]"
+                />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
