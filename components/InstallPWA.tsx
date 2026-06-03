@@ -75,7 +75,7 @@ export default function InstallPWA() {
           </div>
           <ol className="space-y-1.5 text-white/80">
             <li>1. Tap the <strong className="text-white">Share</strong> button <span className="inline-block bg-white/20 px-1.5 py-0.5 rounded text-[10px]">⬆</span> at the bottom of Safari</li>
-            <li>2. Scroll down and tap <strong className="text-white">"Add to Home Screen"</strong></li>
+            <li>2. Scroll down and tap <strong className="text-white">&ldquo;Add to Home Screen&rdquo;</strong></li>
             <li>3. Tap <strong className="text-white">Add</strong> — done!</li>
           </ol>
           <div className="mt-2 pt-2 border-t border-white/10 text-white/50">
