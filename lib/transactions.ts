@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 export type TxType = 'income' | 'expense' | 'loan_received' | 'loan_payment';
-
+export type TransactionType = TxType;
 export interface Transaction {
   id: string;
   user_id: string;
