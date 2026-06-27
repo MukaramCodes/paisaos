@@ -1,6 +1,6 @@
-import { supabase } from './supabase';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+'EOF'
+import { db } from './firebase';
+import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
 export const SYNC_KEYS = [
   'paisaos_income',
@@ -14,17 +14,7 @@ export const SYNC_KEYS = [
   'paisaos_visited',
 ];
 
-const TIMESTAMPS_KEY = 'paisaos_local_ts';
-const MIGRATION_KEY  = 'paisaos_migrated_v1';
-
-// ─── Timestamp helpers ────────────────────────────────────────────────────────
-
-function getTimestamps(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(TIMESTAMPS_KEY) || '{}'); }
-  catch { return {}; }
-}
-
-// ─── Read snapshot of all sync keys ──────────────────────────────────────────
+const MIGRATION_KEY = 'paisaos_migrated_v1';
 
 export function readSnapshot(): Record<string, string> {
   const snap: Record<string, string> = {};
@@ -32,140 +22,71 @@ export function readSnapshot(): Record<string, string> {
   return snap;
 }
 
-// ─── Push a specific set of key/value pairs with a fresh timestamp ────────────
-
-async function pushRows(userId: string, keys: string[]): Promise<void> {
-  const now  = new Date().toISOString();
-  const rows: unknown[] = [];
-
+async function pushKeys(uid: string, keys: string[]): Promise<void> {
+  const updates: Record<string, string> = {};
   for (const key of keys) {
-    const raw = localStorage.getItem(key);
-    if (raw === null || raw === '') continue;
-    let value: unknown;
-    try { value = JSON.parse(raw); }
-    catch { value = { _str: raw }; }
-    rows.push({ user_id: userId, key, value, updated_at: now });
+    const val = localStorage.getItem(key);
+    if (val !== null && val !== '') updates[key] = val;
   }
-
-  if (!rows.length) return;
-
-  const { error } = await supabase
-    .from('user_data')
-    .upsert(rows, { onConflict: 'user_id,key' });
-
-  if (error) throw new Error(error.message);
-
-  // Update local timestamps so next interval doesn't re-push unchanged keys
-  const ts = getTimestamps();
-  for (const key of keys) { if (localStorage.getItem(key)) ts[key] = now; }
-  localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(ts));
+  if (!Object.keys(updates).length) return;
+  await setDoc(doc(db, 'user_data', uid), updates, { merge: true });
 }
 
-// ─── Pull from cloud ──────────────────────────────────────────────────────────
-
-export async function pullFromCloud(userId: string, force = false): Promise<number> {
-  const { data, error } = await supabase
-    .from('user_data')
-    .select('key, value, updated_at')
-    .eq('user_id', userId);
-
-  if (error) throw new Error(error.message);
-  if (!data) return 0;
-
-  const localTs = getTimestamps();
+export async function pullFromCloud(uid: string, _force = false): Promise<number> {
+  const snap = await getDoc(doc(db, 'user_data', uid));
+  if (!snap.exists()) return 0;
+  const data = snap.data();
   let count = 0;
-
-  for (const row of data) {
-    const cloudTs = row.updated_at as string;
-    const myTs    = localTs[row.key];
-
-    if (force || !myTs || cloudTs > myTs) {
-      const val = row.value?._str !== undefined
-        ? row.value._str
-        : JSON.stringify(row.value);
-      localStorage.setItem(row.key, val);
-      localTs[row.key] = cloudTs;
+  for (const key of SYNC_KEYS) {
+    if (data[key] !== undefined && data[key] !== '') {
+      localStorage.setItem(key, data[key]);
       count++;
     }
   }
-
-  localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(localTs));
   return count;
 }
 
-// ─── Periodic sync: compare snapshot, push changed keys, pull ─────────────────
-
 export async function periodicSync(
-  userId: string,
+  uid: string,
   lastSnapshot: Record<string, string>
 ): Promise<Record<string, string>> {
   const current = readSnapshot();
-
-  // Find keys whose value changed since last snapshot
   const changed = SYNC_KEYS.filter(k => current[k] !== lastSnapshot[k] && current[k] !== '');
-
-  if (changed.length > 0) {
-    await pushRows(userId, changed);
-  }
-
-  // Always pull to pick up changes from other devices
-  await pullFromCloud(userId);
-
-  return current; // caller stores this as new snapshot
+  if (changed.length > 0) await pushKeys(uid, changed);
+  await pullFromCloud(uid);
+  return current;
 }
 
-// ─── First-login migration ────────────────────────────────────────────────────
-
-export async function migrateOrPull(userId: string): Promise<number> {
+export async function migrateOrPull(uid: string): Promise<number> {
   if (localStorage.getItem(MIGRATION_KEY) === 'done') {
-    return await pullFromCloud(userId);
+    return await pullFromCloud(uid);
   }
-
-  const { data: existing, error } = await supabase
-    .from('user_data')
-    .select('key')
-    .eq('user_id', userId)
-    .limit(1);
-
-  if (error) throw new Error(error.message);
-
+  const snap = await getDoc(doc(db, 'user_data', uid));
   let pulled = 0;
-  if (existing && existing.length > 0) {
-    pulled = await pullFromCloud(userId, true);
+  if (snap.exists()) {
+    pulled = await pullFromCloud(uid, true);
   } else {
-    await pushRows(userId, SYNC_KEYS);
+    await pushKeys(uid, SYNC_KEYS);
   }
-
   localStorage.setItem(MIGRATION_KEY, 'done');
   return pulled;
 }
 
-// ─── Force full sync (manual button) ─────────────────────────────────────────
-
-export async function forceSyncAll(userId: string): Promise<{ pushed: number; pulled: number }> {
-  // Push ALL keys with a fresh NOW timestamp (guarantees other devices see it as new)
-  await pushRows(userId, SYNC_KEYS);
+export async function forceSyncAll(uid: string): Promise<{ pushed: number; pulled: number }> {
+  await pushKeys(uid, SYNC_KEYS);
   const pushed = SYNC_KEYS.filter(k => localStorage.getItem(k) !== null).length;
-
-  // Force-pull everything (overwrite local, no timestamp check)
-  const pulled = await pullFromCloud(userId, true);
-
+  const pulled = await pullFromCloud(uid, true);
   localStorage.setItem(MIGRATION_KEY, 'done');
   return { pushed, pulled };
 }
 
-// ─── Delete data ──────────────────────────────────────────────────────────────
-
-export async function deleteUserData(userId: string): Promise<void> {
-  const { error } = await supabase.from('user_data').delete().eq('user_id', userId);
-  if (error) throw new Error(error.message);
+export async function deleteUserData(uid: string): Promise<void> {
+  await deleteDoc(doc(db, 'user_data', uid));
   SYNC_KEYS.forEach(k => localStorage.removeItem(k));
   localStorage.removeItem(MIGRATION_KEY);
-  localStorage.removeItem(TIMESTAMPS_KEY);
 }
 
-// ─── Backward-compat ──────────────────────────────────────────────────────────
-
 export function getPendingCount() { return 0; }
-export async function syncPendingToCloud(_userId: string) { /* replaced by periodicSync */ }
-export { pushRows as pushToCloud };
+export async function syncPendingToCloud(_uid: string) {}
+export { pushKeys as pushToCloud };
+EOF
