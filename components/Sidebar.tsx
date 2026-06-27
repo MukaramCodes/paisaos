@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ArrowLeftRight, PiggyBank, Target,
   Stethoscope, Calculator, TrendingUp, Menu, X, UserCircle, LogOut, Wallet,
+  Fuel, ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -21,6 +22,8 @@ const navItems = [
   { href: '/spending-autopsy', label: 'Spending Autopsy',  icon: Stethoscope     },
   { href: '/calculators',      label: 'Calculators',       icon: Calculator      },
   { href: '/net-worth',        label: 'Net Worth',         icon: TrendingUp      },
+  { href: '/petrol',           label: 'Petrol Tracker',    icon: Fuel            },
+  { href: '/backup',           label: 'Cloud Backup',      icon: ShieldCheck     },
   { href: '/account',          label: 'Account',           icon: UserCircle      },
 ];
 
@@ -37,7 +40,6 @@ export default function Sidebar() {
 
   const NavContent = () => (
     <>
-      {/* Brand */}
       <div className="px-6 py-6 border-b border-[#D8F3DC]">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="w-9 h-9 rounded-xl bg-[#1B4332] flex items-center justify-center shadow-sm group-hover:bg-[#2D6A4F] transition-colors">
@@ -50,7 +52,6 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      {/* Nav Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
@@ -73,7 +74,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
       <div className="px-4 py-4 border-t border-[#D8F3DC] space-y-2">
         {name && (
           <div className="flex items-center gap-3 px-1 mb-1">
@@ -100,12 +100,10 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-white border-r border-[#E8F4ED] fixed top-0 left-0 z-30">
         <NavContent />
       </aside>
 
-      {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-[#E8F4ED] px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-[#1B4332] flex items-center justify-center">
@@ -118,7 +116,6 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-30">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
