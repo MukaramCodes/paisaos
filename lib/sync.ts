@@ -89,4 +89,3 @@ export async function deleteUserData(uid: string): Promise<void> {
 export function getPendingCount() { return 0; }
 export async function syncPendingToCloud(_uid: string) {}
 export { pushKeys as pushToCloud };
-EOF

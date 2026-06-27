@@ -66,7 +66,7 @@ export function calcWallet(txs: Transaction[]) {
     if (tx.type === 'income') totalIn += tx.amount;
     else totalOut += tx.amount;
   }
-  return { balance: totalIn - totalOut, totalIn, totalOut };
+  return { balance: totalIn - totalOut, totalIn, totalOut, loanIn, loanOut };
 }
 
 export function thisMonthTxs(txs: Transaction[]): Transaction[] {
