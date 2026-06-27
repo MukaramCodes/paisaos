@@ -104,4 +104,3 @@ export function dailyAverage(txs: Transaction[]): number {
 
 export const fmt = (n: number) =>
   '₨ ' + Math.abs(Math.round(n)).toLocaleString('en-PK');
-EOF
