@@ -61,7 +61,7 @@ export async function deleteTransaction(id: string): Promise<void> {
 }
 
 export function calcWallet(txs: Transaction[]) {
-  let totalIn = 0, totalOut = 0;
+  let totalIn = 0, totalOut = 0, loanIn = 0, loanOut = 0;
   for (const tx of txs) {
     if (tx.type === 'income') totalIn += tx.amount;
     else totalOut += tx.amount;
