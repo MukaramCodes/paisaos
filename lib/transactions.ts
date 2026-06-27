@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 
 export type TxType = 'income' | 'expense' | 'loan_received' | 'loan_payment' | 'adjustment';
 export type TransactionType = TxType;
+
 export interface Transaction {
   id: string;
   user_id: string;
@@ -10,6 +11,7 @@ export interface Transaction {
   category: string;
   note: string;
   date: string;
+  loan_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -33,6 +35,8 @@ export const EXPENSE_CATEGORIES = [
   'Health', 'Education', 'Entertainment', 'Housing', 'Clothing', 'Other',
 ];
 
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+
 export async function addTransaction(userId: string, tx: TxInput): Promise<Transaction> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
@@ -55,10 +59,23 @@ export async function getTransactions(userId: string): Promise<Transaction[]> {
   return data ?? [];
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
+export async function deleteTransaction(id: string, _userId?: string): Promise<void> {
   const { error } = await supabase.from('transactions').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+export async function updateTransaction(id: string, updates: Partial<TxInput>): Promise<Transaction> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ─── Calculations ──────────────────────────────────────────────────────────────
 
 export function calcWallet(txs: Transaction[]) {
   let totalIn = 0, totalOut = 0, loanIn = 0, loanOut = 0;
@@ -79,7 +96,7 @@ export function thisMonthTxs(txs: Transaction[]): Transaction[] {
 
 export function availableMonths(txs: Transaction[]): string[] {
   const months = new Set(txs.map(tx => tx.date.slice(0, 7)));
-  return Array.from(months).sort((a, b) => b.localeCompare(a));
+  return Array.from(months).sort().reverse();
 }
 
 export function filterByMonth(txs: Transaction[], month: string): Transaction[] {
