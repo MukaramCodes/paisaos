@@ -20,6 +20,7 @@ export type TxInput = {
   category: string;
   note: string;
   date: string;
+  loan_id?: string;
 };
 
 export const INCOME_CATEGORIES = [
