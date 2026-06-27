@@ -75,6 +75,15 @@ export function thisMonthTxs(txs: Transaction[]): Transaction[] {
   return txs.filter(tx => tx.date >= start);
 }
 
+export function availableMonths(txs: Transaction[]): string[] {
+  const months = new Set(txs.map(tx => tx.date.slice(0, 7)));
+  return Array.from(months).sort((a, b) => b.localeCompare(a));
+}
+
+export function filterByMonth(txs: Transaction[], month: string): Transaction[] {
+  return txs.filter(tx => tx.date.startsWith(month));
+}
+
 export function spendByCategory(txs: Transaction[]): { category: string; amount: number }[] {
   const map: Record<string, number> = {};
   for (const tx of txs) {
