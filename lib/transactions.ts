@@ -1,14 +1,11 @@
-'EOF'
-import { db } from './firebase';
-import {
-  collection, addDoc, getDocs, deleteDoc,
-  query, where, doc,
-} from 'firebase/firestore';
+import { supabase } from './supabase';
+
+export type TxType = 'income' | 'expense' | 'loan_received' | 'loan_payment';
 
 export interface Transaction {
   id: string;
   user_id: string;
-  type: 'income' | 'expense';
+  type: TxType;
   amount: number;
   category: string;
   note: string;
@@ -18,7 +15,7 @@ export interface Transaction {
 }
 
 export type TxInput = {
-  type: 'income' | 'expense';
+  type: TxType;
   amount: number;
   category: string;
   note: string;
@@ -37,34 +34,38 @@ export const EXPENSE_CATEGORIES = [
 
 export async function addTransaction(userId: string, tx: TxInput): Promise<Transaction> {
   const now = new Date().toISOString();
-  const docRef = await addDoc(collection(db, 'transactions'), {
-    user_id: userId,
-    ...tx,
-    created_at: now,
-    updated_at: now,
-  });
-  return { id: docRef.id, user_id: userId, ...tx, created_at: now, updated_at: now };
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({ user_id: userId, ...tx, created_at: now, updated_at: now })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {
-  const q = query(collection(db, 'transactions'), where('user_id', '==', userId));
-  const snap = await getDocs(q);
-  const txs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
-  return txs.sort((a, b) => {
-    if (b.date !== a.date) return b.date.localeCompare(a.date);
-    return b.created_at.localeCompare(a.created_at);
-  });
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'transactions', id));
+  const { error } = await supabase.from('transactions').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export function calcWallet(txs: Transaction[]) {
   let totalIn = 0, totalOut = 0, loanIn = 0, loanOut = 0;
   for (const tx of txs) {
     if (tx.type === 'income') totalIn += tx.amount;
-    else totalOut += tx.amount;
+    else if (tx.type === 'expense') totalOut += tx.amount;
+    else if (tx.type === 'loan_received') loanIn += tx.amount;
+    else if (tx.type === 'loan_payment') loanOut += tx.amount;
   }
   return { balance: totalIn - totalOut, totalIn, totalOut, loanIn, loanOut };
 }
