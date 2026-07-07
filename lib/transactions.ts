@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from '@/lib/supabase';
 
 export type TxType = 'income' | 'expense' | 'loan_received' | 'loan_payment' | 'adjustment';
 export type TransactionType = TxType;

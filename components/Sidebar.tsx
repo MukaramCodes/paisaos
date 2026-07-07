@@ -23,7 +23,6 @@ const navItems = [
   { href: '/calculators',      label: 'Calculators',       icon: Calculator      },
   { href: '/net-worth',        label: 'Net Worth',         icon: TrendingUp      },
   { href: '/petrol',           label: 'Petrol Tracker',    icon: Fuel            },
-  { href: '/backup',           label: 'Cloud Backup',      icon: ShieldCheck     },
   { href: '/account',          label: 'Account',           icon: UserCircle      },
 ];
 
