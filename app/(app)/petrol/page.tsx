@@ -136,14 +136,36 @@ export default function PetrolPage() {
 
   const handlePplChange = (val: string) => {
     const ppl = val.replace(/[^0-9.]/g, '');
-    const liters = newFill.liters ? (Number(newFill.liters) * Number(ppl || 0)).toFixed(0) : '';
-    setNewFill((p) => ({ ...p, ppl, amount: liters }));
+    const pplNum = Number(ppl || 0);
+    // If we already have a total amount, back-calculate liters
+    if (newFill.amount && pplNum > 0) {
+      const liters = (Number(newFill.amount) / pplNum).toFixed(2);
+      setNewFill((p) => ({ ...p, ppl, liters }));
+    } else if (newFill.liters && pplNum > 0) {
+      // If we have liters, calculate total amount
+      const amount = (Number(newFill.liters) * pplNum).toFixed(0);
+      setNewFill((p) => ({ ...p, ppl, amount }));
+    } else {
+      setNewFill((p) => ({ ...p, ppl }));
+    }
   };
 
   const handleLitersChange = (val: string) => {
     const liters = val.replace(/[^0-9.]/g, '');
     const amount = newFill.ppl ? (Number(liters) * Number(newFill.ppl)).toFixed(0) : '';
     setNewFill((p) => ({ ...p, liters, amount }));
+  };
+
+  const handleAmountChange = (val: string) => {
+    const amount = val.replace(/[^0-9]/g, '');
+    const pplNum = Number(newFill.ppl || 0);
+    // If price per liter is already set, auto-calculate liters
+    if (pplNum > 0 && amount) {
+      const liters = (Number(amount) / pplNum).toFixed(2);
+      setNewFill((p) => ({ ...p, amount, liters }));
+    } else {
+      setNewFill((p) => ({ ...p, amount, liters: '' }));
+    }
   };
 
   const addFill = () => {
@@ -253,11 +275,11 @@ export default function PetrolPage() {
                   type="text"
                   inputMode="numeric"
                   value={newFill.amount}
-                  onChange={(e) => setNewFill((p) => ({ ...p, amount: e.target.value.replace(/[^0-9]/g, '') }))}
+                  onChange={(e) => handleAmountChange(e.target.value)}
                   placeholder="e.g. 4350"
                   className="w-full border border-[#D8F3DC] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#40916C] font-semibold"
                 />
-                <p className="text-xs text-gray-400 mt-1">Auto-calculated from liters × price, or enter manually</p>
+                <p className="text-xs text-gray-400 mt-1">Enter any two fields — the third auto-calculates</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Note (optional)</label>
